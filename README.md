@@ -115,18 +115,3 @@ A leaderboard of the most active traders on the server.
 - No commands required — everything is block-based
 - Fully compatible with both **NeoForge** and **Fabric** (shared common module via Architectury)
 
----
-
-## 🔗 Compatibility
-
-| Platform | Status |
-|----------|--------|
-| NeoForge 1.21.1 | ✅ Supported |
-| Fabric 1.21.1 | ✅ Supported |
-| Forge | ❌ Not supported |
-
----
-
-## 📄 License
-
-[MPL-2.0](https://www.mozilla.org/en-US/MPL/2.0/)
