@@ -1,6 +1,6 @@
 package by.deokma.stockmarket.neoforge.compat;
 
-import by.deokma.stockmarket.neoforge.market.TradeStatsSavedData;
+import by.deokma.stockmarket.market.TradeStatsSavedData;
 import com.simibubi.create.content.logistics.tableCloth.ShoppingListItem;
 import com.simibubi.create.content.logistics.tableCloth.TableClothBlockEntity;
 import net.minecraft.server.MinecraftServer;

@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "iri",
+    "iei",
+    "igi"
+  ],
+  "key": {
+    "i": { "item": "minecraft:iron_nugget" },
+    "r": { "item": "minecraft:redstone" },
+    "e": { "item": "minecraft:ender_pearl" },
+    "g": { "item": "stockmarket:market_terminal" }
+  },
+  "result": {
+    "id": "stockmarket:market_remote",
+    "count": 1
+  }
+}

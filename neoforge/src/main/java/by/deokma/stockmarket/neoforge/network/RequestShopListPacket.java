@@ -1,7 +1,7 @@
 package by.deokma.stockmarket.neoforge.network;
 
 import by.deokma.stockmarket.shop.ShopEntry;
-import by.deokma.stockmarket.neoforge.shop.VendorRegistry;
+import by.deokma.stockmarket.shop.VendorRegistry;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;

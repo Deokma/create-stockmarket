@@ -217,6 +217,28 @@ public class StockMarketScreen extends Screen {
     }
 
     @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        boolean handled = switch (activeTab) {
+            case 0 -> shopScreen != null && shopScreen.mouseDragged(mx, my, button, dx, dy);
+            case 1 -> marketScreen.mouseDragged(mx, my, button, dx, dy);
+            case 2 -> topSellersScreen.mouseDragged(mx, my, button, dx, dy);
+            default -> false;
+        };
+        return handled || super.mouseDragged(mx, my, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        boolean handled = switch (activeTab) {
+            case 0 -> shopScreen != null && shopScreen.mouseReleased(mx, my, button);
+            case 1 -> marketScreen.mouseReleased(mx, my, button);
+            case 2 -> topSellersScreen.mouseReleased(mx, my, button);
+            default -> false;
+        };
+        return handled || super.mouseReleased(mx, my, button);
+    }
+
+    @Override
     public boolean keyPressed(int key, int scan, int mods) {
         if (activeTab == 0 && shopScreen != null && shopScreen.keyPressed(key, scan, mods)) return true;
         if (activeTab == 1 && marketScreen.keyPressed(key, scan, mods)) return true;

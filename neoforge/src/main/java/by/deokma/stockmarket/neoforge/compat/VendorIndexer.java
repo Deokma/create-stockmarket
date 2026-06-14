@@ -1,7 +1,7 @@
 package by.deokma.stockmarket.neoforge.compat;
 
 import by.deokma.stockmarket.shop.ShopEntry;
-import by.deokma.stockmarket.neoforge.shop.ShopSavedData;
+import by.deokma.stockmarket.shop.ShopSavedData;
 import dev.ithundxr.createnumismatics.content.backend.behaviours.SliderStylePriceBehaviour;
 import dev.ithundxr.createnumismatics.content.vendor.VendorBlock;
 import dev.ithundxr.createnumismatics.content.vendor.VendorBlockEntity;

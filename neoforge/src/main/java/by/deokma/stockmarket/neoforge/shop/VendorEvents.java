@@ -6,6 +6,7 @@ import by.deokma.stockmarket.neoforge.compat.TableClothTransactionTracker;
 import by.deokma.stockmarket.neoforge.compat.VendorIndexer;
 import by.deokma.stockmarket.neoforge.compat.VendorTransactionTracker;
 import by.deokma.stockmarket.shop.ShopEntry;
+import by.deokma.stockmarket.shop.VendorRegistry;
 import com.simibubi.create.content.logistics.tableCloth.TableClothBlock;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;

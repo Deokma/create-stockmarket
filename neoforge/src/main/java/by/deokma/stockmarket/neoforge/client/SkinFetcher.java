@@ -1,14 +1,19 @@
 package by.deokma.stockmarket.neoforge.client;
 
 import com.mojang.authlib.GameProfile;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.client.multiplayer.PlayerInfo;
 import net.minecraft.client.resources.PlayerSkin;
 import net.minecraft.client.resources.DefaultPlayerSkin;
 import net.minecraft.resources.ResourceLocation;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -46,11 +51,11 @@ public final class SkinFetcher {
     }
 
     // ── Session state (all ConcurrentHashMap-backed, safe for render thread) ──
-    /** Resolved textures keyed by player name. */
+    /** Resolved textures keyed by cache key (player name, or UUID string when no name). */
     private final Map<String, ResourceLocation> cache      = new ConcurrentHashMap<>();
-    /** Names with an in-flight fetch. */
+    /** Keys with an in-flight fetch. */
     private final Set<String>                   pending    = ConcurrentHashMap.newKeySet();
-    /** Names that failed this session — no retry. */
+    /** Keys that failed this session — no retry. */
     private final Set<String>                   failed     = ConcurrentHashMap.newKeySet();
     /** Whether each resolved skin uses the legacy 64×32 format. */
     private final Map<String, Boolean>          legacyFlags = new ConcurrentHashMap<>();
@@ -70,12 +75,27 @@ public final class SkinFetcher {
      *         (falls back to Steve if the fallback itself is null, callers must guard)
      */
     public ResourceLocation getTexture(String playerName) {
-        if (playerName == null || playerName.isBlank()) return fallback();
-        ResourceLocation cached = cache.get(playerName);
+        return getTexture(null, playerName);
+    }
+
+    /**
+     * Returns the skin texture for the given player, resolved by the real account
+     * {@code uuid} when available (falls back to the name otherwise).
+     *
+     * <p>Passing the real UUID is what makes Mojang return the player's actual skin
+     * instead of the default Steve/Alex head.
+     *
+     * @param uuid       real account UUID, or {@code null} if unknown
+     * @param playerName case-sensitive Minecraft player name; may be null
+     */
+    public ResourceLocation getTexture(UUID uuid, String playerName) {
+        String key = cacheKey(uuid, playerName);
+        if (key == null) return fallback();
+        ResourceLocation cached = cache.get(key);
         if (cached != null) return cached;
-        if (failed.contains(playerName))   return fallback();
-        if (pending.contains(playerName))  return fallback();
-        startFetch(playerName);
+        if (failed.contains(key))   return fallback();
+        if (pending.contains(key))  return fallback();
+        startFetch(key, uuid, playerName);
         return fallback();
     }
 
@@ -84,7 +104,12 @@ public final class SkinFetcher {
      * legacy 64×32 format (no hat overlay).
      */
     public boolean isLegacy(String playerName) {
-        return playerName != null && legacyFlags.getOrDefault(playerName, false);
+        return isLegacy(null, playerName);
+    }
+
+    public boolean isLegacy(UUID uuid, String playerName) {
+        String key = cacheKey(uuid, playerName);
+        return key != null && legacyFlags.getOrDefault(key, false);
     }
 
 
@@ -94,56 +119,88 @@ public final class SkinFetcher {
         return FALLBACK;
     }
 
-    private void startFetch(String playerName) {
-        pending.add(playerName);
-        try {
-            // Build a GameProfile with just the name; SkinManager will resolve the UUID.
-            GameProfile profile = new GameProfile(UUID.nameUUIDFromBytes(
-                    ("OfflinePlayer:" + playerName).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                    playerName);
+    private static String cacheKey(UUID uuid, String playerName) {
+        if (playerName != null && !playerName.isBlank()) return playerName;
+        if (uuid != null) return uuid.toString();
+        return null;
+    }
 
-            Minecraft.getInstance().getSkinManager()
-                    .getOrLoad(profile)
-                    .thenAccept(skin -> {
-                        if (skin != null) {
-                            boolean legacy = (skin.model() == PlayerSkin.Model.WIDE)
-                                    && isLegacyTexture(skin);
-                            legacyFlags.put(playerName, legacy);
-                            onFetchSuccess(playerName, skin.texture());
-                        } else {
-                            onFetchFailure(playerName);
-                        }
-                    })
-                    .exceptionally(ex -> {
-                        onFetchFailure(playerName);
-                        return null;
-                    });
+    private void startFetch(String key, UUID uuid, String playerName) {
+        pending.add(key);
+        try {
+            // 1) Online player? Use the live skin from the tab list — instant and accurate.
+            PlayerSkin live = liveSkin(uuid, playerName);
+            if (live != null) {
+                acceptSkin(key, live);
+                return;
+            }
+
+            // 2) Offline: resolve via the real account UUID so Mojang returns the right skin.
+            if (uuid != null) {
+                resolveByUuid(key, uuid, playerName);
+                return;
+            }
+
+            // 3) No UUID and not online — nothing reliable to resolve; show the fallback.
+            onFetchFailure(key);
         } catch (Exception ex) {
-            onFetchFailure(playerName);
+            onFetchFailure(key);
         }
     }
 
+    /** Looks up a skin from the connected-player list (works only for online players). */
+    private static PlayerSkin liveSkin(UUID uuid, String playerName) {
+        ClientPacketListener conn = Minecraft.getInstance().getConnection();
+        if (conn == null) return null;
+        PlayerInfo info = null;
+        if (uuid != null) info = conn.getPlayerInfo(uuid);
+        if (info == null && playerName != null && !playerName.isBlank()) {
+            info = conn.getPlayerInfo(playerName);
+        }
+        return info != null ? info.getSkin() : null;
+    }
+
     /**
-     * Heuristic: treat a skin as legacy if its texture ResourceLocation path
-     * does not contain a UUID-style segment (Mojang modern skins always use
-     * a UUID-derived hash path). This is a best-effort check; the hat overlay
-     * is simply not rendered for skins flagged as legacy.
+     * Fetches the textured {@link GameProfile} for the real UUID off-thread (blocking HTTP),
+     * then registers it with the {@code SkinManager} on the main thread.
      */
-    private static boolean isLegacyTexture(PlayerSkin skin) {
-        // Modern skins always have a non-null texture; we conservatively return
-        // false (modern) so the hat overlay is attempted for all resolved skins.
-        return false;
+    private void resolveByUuid(String key, UUID uuid, String playerName) {
+        var sessionService = Minecraft.getInstance().getMinecraftSessionService();
+        Minecraft mc = Minecraft.getInstance();
+        CompletableFuture
+                .supplyAsync(() -> {
+                    var result = sessionService.fetchProfile(uuid, false);
+                    return result != null ? result.profile()
+                            : new GameProfile(uuid, playerName != null ? playerName : "");
+                }, Util.backgroundExecutor())
+                .thenComposeAsync(profile -> mc.getSkinManager().getOrLoad(profile), mc)
+                .thenAccept(skin -> {
+                    if (skin != null) acceptSkin(key, skin);
+                    else onFetchFailure(key);
+                })
+                .exceptionally(ex -> {
+                    onFetchFailure(key);
+                    return null;
+                });
     }
 
-    private void onFetchSuccess(String playerName, ResourceLocation texture) {
+    private void acceptSkin(String key, PlayerSkin skin) {
+        legacyFlags.put(key, false); // modern skins; hat overlay always attempted
+        onFetchSuccess(key, skin.texture());
+    }
+
+    private void onFetchSuccess(String key, ResourceLocation texture) {
         // Discard if clear() was called while the fetch was in flight.
-        if (cache.isEmpty() && !pending.contains(playerName)) return;
-        cache.put(playerName, texture);
-        pending.remove(playerName);
+        if (cache.isEmpty() && !pending.contains(key)) {
+            pending.remove(key);
+            return;
+        }
+        cache.put(key, texture);
+        pending.remove(key);
     }
 
-    private void onFetchFailure(String playerName) {
-        failed.add(playerName);
-        pending.remove(playerName);
+    private void onFetchFailure(String key) {
+        failed.add(key);
+        pending.remove(key);
     }
 }

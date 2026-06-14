@@ -92,11 +92,20 @@ public final class UIHelper {
      */
     public static void drawPlayerHead(GuiGraphics gfx, String playerName,
                                       int x, int y, int size) {
+        drawPlayerHead(gfx, null, playerName, x, y, size);
+    }
+
+    /**
+     * Renders a player head, resolving the skin by the real account {@code uuid}
+     * when available (which yields the player's actual skin rather than Steve).
+     */
+    public static void drawPlayerHead(GuiGraphics gfx, java.util.UUID uuid, String playerName,
+                                      int x, int y, int size) {
         int clampedSize = Math.max(8, Math.min(16, size));
-        ResourceLocation texture = SkinFetcher.INSTANCE.getTexture(playerName);
+        ResourceLocation texture = SkinFetcher.INSTANCE.getTexture(uuid, playerName);
         if (texture == null) return;
         PlayerHeadRenderer.render(gfx, texture, x, y, clampedSize,
-                SkinFetcher.INSTANCE.isLegacy(playerName));
+                SkinFetcher.INSTANCE.isLegacy(uuid, playerName));
     }
 
     /**

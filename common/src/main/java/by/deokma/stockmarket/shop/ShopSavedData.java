@@ -1,6 +1,5 @@
-package by.deokma.stockmarket.neoforge.shop;
+package by.deokma.stockmarket.shop;
 
-import by.deokma.stockmarket.shop.ShopEntry;
 import by.deokma.stockmarket.util.ItemStackPersistence;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.HolderLookup;
@@ -23,13 +22,15 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * The in-memory map is the authoritative source; loaded chunks update it,
  * and it is flushed to disk automatically by the SavedData system.
+ *
+ * {@link SavedData} is a vanilla Minecraft class — available on both NeoForge and Fabric.
  */
 public class ShopSavedData extends SavedData {
 
     public static final String NAME = "stockmarket_shops";
     private static final Logger LOGGER = LogManager.getLogger("stockmarket");
 
-    /** Key → ShopEntry (key = "dim|x,y,z") */
+    /** Key → ShopEntry (key = "dim|x,y,z" or "dim|x,y,z#offerIndex") */
     private final Map<String, ShopEntry> shops = new ConcurrentHashMap<>();
 
     // ── Factory ───────────────────────────────────────────────────────────────
@@ -39,7 +40,8 @@ public class ShopSavedData extends SavedData {
         return storage.computeIfAbsent(
                 new SavedData.Factory<>(
                         ShopSavedData::new,
-                        (tag, reg) -> ShopSavedData.load(tag, reg, server)
+                        (tag, reg) -> ShopSavedData.load(tag, reg, server),
+                        null
                 ),
                 NAME
         );
@@ -56,7 +58,7 @@ public class ShopSavedData extends SavedData {
         if (shops.remove(key) != null) setDirty();
     }
 
-    /** Removes Vendor key {@code baseKey} and all TableCloth multi-offer keys {@code baseKey#0}, {@code baseKey#1}, … */
+    /** Removes entry for {@code baseKey} and all TableCloth multi-offer keys {@code baseKey#0}, {@code baseKey#1}, … */
     public void removeByBaseKey(String baseKey) {
         boolean removed = shops.keySet().removeIf(k -> k.equals(baseKey) || k.startsWith(baseKey + "#"));
         if (removed) setDirty();
@@ -84,13 +86,13 @@ public class ShopSavedData extends SavedData {
                 entry.putInt("x",   s.pos().getX());
                 entry.putInt("y",   s.pos().getY());
                 entry.putInt("z",   s.pos().getZ());
-                entry.putString("dim",      s.dimensionId());
-                entry.putString("owner",    s.ownerName());
+                entry.putString("dim",       s.dimensionId());
+                entry.putString("owner",     s.ownerName());
                 entry.putString("ownerUuid", s.ownerUuid().toString());
-                entry.putString("mode",     s.mode());
-                entry.putString("shopType", s.shopType());
-                entry.putInt("offerIndex",  s.offerIndex());
-                entry.putInt("price",       s.totalPriceInSpurs());
+                entry.putString("mode",      s.mode());
+                entry.putString("shopType",  s.shopType());
+                entry.putInt("offerIndex",   s.offerIndex());
+                entry.putInt("price",        s.totalPriceInSpurs());
                 if (!s.sellingItem().isEmpty())
                     ItemStackPersistence.writeIntoTag(entry, "sellingItem", s.sellingItem(), registries);
                 if (!s.priceItem().isEmpty())
@@ -111,7 +113,7 @@ public class ShopSavedData extends SavedData {
         ListTag list = tag.getList("shops", Tag.TAG_COMPOUND);
         for (int i = 0; i < list.size(); i++) {
             try {
-                CompoundTag e = list.getCompound(i);
+                CompoundTag e   = list.getCompound(i);
                 String key      = e.getString("key");
                 BlockPos pos    = new BlockPos(e.getInt("x"), e.getInt("y"), e.getInt("z"));
                 String dim      = e.getString("dim");
@@ -122,8 +124,7 @@ public class ShopSavedData extends SavedData {
                 int offerIndex  = e.contains("offerIndex") ? e.getInt("offerIndex") : -1;
                 int price       = e.getInt("price");
 
-                ItemStack selling = ItemStackPersistence.readFromTag(e, "sellingItem", registries);
-
+                ItemStack selling   = ItemStackPersistence.readFromTag(e, "sellingItem", registries);
                 ItemStack priceItem = ItemStackPersistence.readFromTag(e, "priceItem", registries);
 
                 data.shops.put(key, new ShopEntry(pos, dim, selling, price,

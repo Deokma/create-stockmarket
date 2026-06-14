@@ -126,6 +126,9 @@ public class ShopListScreen extends Screen {
      */
     private List<ShopDisplayRow> displayRows = new ArrayList<>();
     private int scrollOffset = 0;
+    private boolean scrollDragging = false;
+    private double dragStartY = 0;
+    private int dragStartOffset = 0;
     private EditBox searchBox;
     private boolean loading = true;
 
@@ -523,12 +526,19 @@ public class ShopListScreen extends Screen {
     }
 
 
+    /** True when every offer in the row sells the same item (e.g. a single product with several price tiers). */
+    private static boolean isUniformItem(ShopDisplayRow row) {
+        ItemStack a = row.anchor().sellingItem();
+        return row.offers.stream().allMatch(o -> ItemStack.isSameItem(o.sellingItem(), a));
+    }
+
     private static String formatRowItemNames(ShopDisplayRow row) {
-        if (row.offers.size() == 1) {
-            ItemStack s = row.offers.get(0).sellingItem();
-            String n = s.getHoverName().getString();
-            return s.getCount() > 1 ? n + " ×" + s.getCount() : n;
+        // Uniform rows show the name once; the quantity is rendered separately (right-aligned)
+        // so it stays visible even when the name is clipped.
+        if (isUniformItem(row)) {
+            return row.anchor().sellingItem().getHoverName().getString();
         }
+        // Mixed stall — list each product with its inline count.
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < row.offers.size(); i++) {
             if (i > 0) sb.append(" · ");
@@ -596,14 +606,28 @@ public class ShopListScreen extends Screen {
                 iconsEnd = ix + 2 + font.width(more) + 6;
             }
 
+            // Selling quantity (×N) — for uniform rows take the largest count among the stall's
+            // offers and draw it right-aligned, so a long item name can never push it out of view
+            // (it survives name clipping). Mixed stalls keep their per-item counts inline instead.
+            boolean uniform = isUniformItem(row);
+            int sellCount = uniform
+                    ? row.offers.stream().mapToInt(o -> o.sellingItem().getCount()).max().orElse(1)
+                    : 1;
+            String qty = (uniform && sellCount > 1) ? "×" + sellCount : "";
+            int colRight = cx + colItem();
+            int qtyW = qty.isEmpty() ? 0 : font.width(qty) + 6;
+
             String names = formatRowItemNames(row);
             int textX = iconsEnd + 4;
             String line = tag + names;
-            int nameMax = colItem() - (textX - cx) - 6;
+            int nameMax = colRight - textX - 6 - qtyW;
             nameMax = Math.max(24, nameMax);
             if (font.width(line) > nameMax)
                 line = font.plainSubstrByWidth(line, nameMax - 4) + "…";
             gfx.drawString(font, line, textX, ty, Colors.TEXT, false);
+            if (!qty.isEmpty()) {
+                gfx.drawString(font, qty, colRight - font.width(qty) - 6, ty, Colors.GOLD, false);
+            }
             cx += colItem();
 
             // Price
@@ -616,10 +640,10 @@ public class ShopListScreen extends Screen {
             }
             cx += colPrice();
 
-            // Owner — with skin head icon
+            // Owner — with skin head icon (resolved by the real account UUID)
             String owner = e.ownerName();
             int iconSize = UIHelper.playerHeadIconSize(rowH);
-            UIHelper.drawPlayerHead(gfx, e.ownerName(), cx + 2, ry + (rowH - iconSize) / 2, iconSize);
+            UIHelper.drawPlayerHead(gfx, e.ownerUuid(), e.ownerName(), cx + 2, ry + (rowH - iconSize) / 2, iconSize);
             int ownerTextX = cx + 2 + iconSize + 2;
             int ownerMaxW = colOwner() - 4 - iconSize - 2;
             if (font.width(owner) > ownerMaxW)
@@ -629,7 +653,7 @@ public class ShopListScreen extends Screen {
 
             // Mode badge
             boolean sell = e.mode().equals("SELL");
-            int modeBadgeFg = sell ? Colors.RED : Colors.GREEN;
+            int modeBadgeFg = 0xFFFFFFFF; // white reads better on the coloured badge
             int mw = font.width(e.mode()) + 6;
             ResourceLocation badgeTex = sell ? GuiTextures.BADGE_SELL : GuiTextures.BADGE_BUY;
             int badgeTexW = sell ? GuiTextures.Dimensions.BADGE_SELL_W : GuiTextures.Dimensions.BADGE_BUY_W;
@@ -788,6 +812,36 @@ public class ShopListScreen extends Screen {
     }
 
     @Override
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (scrollDragging && button == 0 && !displayRows.isEmpty()) {
+            int tabsH = 18;
+            int py = panelY();
+            int listTop = py + headerHeight() + toolbarHeight() + tabsH + colHdrHeight();
+            int listBot = py + panelH() - footerHeight();
+            int listH = listBot - listTop;
+            int rowsVis = Math.max(1, listH / rowHeight());
+            int maxScroll = Math.max(0, displayRows.size() - rowsVis);
+            int thumbH = Math.max(16, listH * rowsVis / displayRows.size());
+            int trackH = listH - thumbH;
+            if (trackH > 0) {
+                int delta = (int) Math.round((my - dragStartY) * maxScroll / (double) trackH);
+                scrollOffset = Mth.clamp(dragStartOffset + delta, 0, maxScroll);
+            }
+            return true;
+        }
+        return super.mouseDragged(mx, my, button, dx, dy);
+    }
+
+    @Override
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (scrollDragging && button == 0) {
+            scrollDragging = false;
+            return true;
+        }
+        return super.mouseReleased(mx, my, button);
+    }
+
+    @Override
     public boolean mouseClicked(double mx, double my, int button) {
         int px = panelX(), py = panelY();
         int pw = panelW();
@@ -892,6 +946,18 @@ public class ShopListScreen extends Screen {
                 if (favourites.contains(key)) favourites.remove(key);
                 else favourites.add(key);
                 applyFilter();
+                return true;
+            }
+        }
+
+        // Scrollbar drag start
+        if (button == 0 && !displayRows.isEmpty()) {
+            int listH = listBot - listTop;
+            int scrollBarX = tx + tw - pad - 4;
+            if (mx >= scrollBarX && mx < scrollBarX + 4 && my >= listTop && my < listTop + listH) {
+                scrollDragging = true;
+                dragStartY = my;
+                dragStartOffset = scrollOffset;
                 return true;
             }
         }

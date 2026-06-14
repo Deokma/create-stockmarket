@@ -22,7 +22,7 @@ public record RequestTradeStatsPacket() implements CustomPacketPayload {
     public static void handle(RequestTradeStatsPacket pkt, IPayloadContext ctx) {
         ctx.enqueueWork(() -> {
             if (!(ctx.player() instanceof ServerPlayer player)) return;
-            var stats = by.deokma.stockmarket.neoforge.market.TradeStatsSavedData
+            var stats = by.deokma.stockmarket.market.TradeStatsSavedData
                     .getOrCreate(player.server);
             // Send all entries — no limit
             NetworkHandler.sendToPlayer(player, new TradeStatsPacket(stats.getTopSellers(Integer.MAX_VALUE)));

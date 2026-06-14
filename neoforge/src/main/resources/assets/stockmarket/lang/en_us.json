@@ -13,9 +13,17 @@
   "key.stockmarket.open_stock_market": "Open Stock Market",
   "key.categories.stockmarket": "Create: StockMarket",
   "block.stockmarket.market_terminal": "Market Terminal",
+  "item.stockmarket.market_remote": "Market Remote",
+  "item.stockmarket.market_remote.tooltip": "Opens the Stock Market from anywhere",
   "screen.stockmarket.stock_market": "Stock Market",
   "screen.stockmarket.tab_shops": "Shops",
   "screen.stockmarket.tab_market": "Market",
   "screen.stockmarket.market_loading": "Loading...",
-  "screen.stockmarket.market_empty": "No market data"
+  "screen.stockmarket.market_empty": "No market data",
+  "stockmarket.display_source.top_sellers": "Top Sellers",
+  "stockmarket.display_source.top_shops": "Top Shops (by listings)",
+  "stockmarket.display_source.most_traded": "Most Traded Items",
+  "stockmarket.display_source.shop_count": "Total Listings",
+  "stockmarket.display_source.seller_count": "Number of Sellers",
+  "stockmarket.display_source.total_sales": "Total Sales"
 }

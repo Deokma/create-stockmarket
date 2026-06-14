@@ -46,6 +46,9 @@ public class MarketMonitorScreen {
     private List<MarketEntry> barterRows = new ArrayList<>();
 
     private int scrollOffset = 0;
+    private boolean scrollDragging = false;
+    private double dragStartY = 0;
+    private int dragStartOffset = 0;
     private EditBox searchBox;
     // sortCol: 0=name 1=price 2=change% 3=volume 4=trend
     private int sortCol = 1;
@@ -737,11 +740,13 @@ public class MarketMonitorScreen {
         if (!topTraders.isEmpty()) {
             boolean hasRealData = !TradeStatsData.getTopSellers().isEmpty();
             String labelPlain = hasRealData ? "🏆 " : "Top Seller ";
-            String labelStyled = hasRealData ? "§6🏆 " : "§7Top Seller ";
+            // No §-colour code on the text label so the Colors.TEXT_DIM param applies (matches the
+            // neighbouring footer labels). The trophy keeps its gold §6 code.
+            String labelStyled = hasRealData ? "§6🏆 " : "Top Seller ";
             int iconSize = UIHelper.playerHeadIconSize(footH);
             int tx = leftEdge;
 
-            gfx.drawString(font, labelStyled, tx, textY, Colors.TEXT, false);
+            gfx.drawString(font, labelStyled, tx, textY, Colors.TEXT_DIM, false);
             tx += font.width(labelPlain);
 
             for (int i = 0; i < topTraders.size(); i++) {
@@ -813,6 +818,47 @@ public class MarketMonitorScreen {
                 }
                 cx += widths[i];
             }
+        }
+        // Scrollbar drag start
+        if (button == 0) {
+            int listTop = y + toolbarHeight() + colHdrHeight() + 2;
+            int listBot = y + h - footerHeight();
+            int listH = listBot - listTop;
+            int bx = x + w - 5;
+            if (mx >= bx && mx < bx + 4 && my >= listTop && my < listTop + listH) {
+                scrollDragging = true;
+                dragStartY = my;
+                dragStartOffset = scrollOffset;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (scrollDragging && button == 0) {
+            int listTop = y + toolbarHeight() + colHdrHeight() + 2;
+            int listBot = y + h - footerHeight();
+            int listH = listBot - listTop;
+            int rowsVis = Math.max(1, listH / rowHeight());
+            int total = totalRows();
+            int maxScroll = Math.max(0, total - rowsVis);
+            int thumbH = Math.max(16, total > 0 ? listH * rowsVis / total : listH);
+            int trackH = listH - thumbH;
+            if (trackH > 0) {
+                int delta = (int) Math.round((my - dragStartY) * maxScroll / (double) trackH);
+                scrollOffset = Mth.clamp(dragStartOffset + delta, 0, maxScroll);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (scrollDragging && button == 0) {
+            scrollDragging = false;
+            return true;
         }
         return false;
     }

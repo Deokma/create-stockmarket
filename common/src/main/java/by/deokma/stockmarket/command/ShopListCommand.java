@@ -1,16 +1,31 @@
-package by.deokma.stockmarket.neoforge.command;
+package by.deokma.stockmarket.command;
 
-import by.deokma.stockmarket.neoforge.network.NetworkHandler;
-import by.deokma.stockmarket.neoforge.network.OpenShopListPacket;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.function.Consumer;
+
+/**
+ * Registers the {@code /shoplist} command.
+ *
+ * Platform-specific action (sending the open-screen packet) is injected via
+ * {@link #setOpenShopListSender} at mod startup. This keeps the command logic
+ * fully loader-agnostic.
+ */
 public final class ShopListCommand {
 
+    /** How to send the "open shop list screen" signal to a player — injected by platform. */
+    private static Consumer<ServerPlayer> openShopListSender = player -> {};
+
     private ShopListCommand() {}
+
+    /** Called once at startup by the platform entrypoint to wire in packet sending. */
+    public static void setOpenShopListSender(Consumer<ServerPlayer> sender) {
+        openShopListSender = sender;
+    }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("shoplist")
@@ -19,8 +34,7 @@ public final class ShopListCommand {
                         ctx.getSource().sendFailure(Component.literal("Only players can use this command."));
                         return 0;
                     }
-                    // Tell the client to open the ShopListScreen
-                    NetworkHandler.sendToPlayer(player, new OpenShopListPacket());
+                    openShopListSender.accept(player);
                     return 1;
                 })
         );

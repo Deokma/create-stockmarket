@@ -29,6 +29,9 @@ public class TopSellersScreen {
     private List<Map.Entry<String, Long>> shopEntries = new ArrayList<>();
     private LeaderboardTab activeTab = LeaderboardTab.SALES;
     private int scrollOffset = 0;
+    private boolean scrollDragging = false;
+    private double dragStartY = 0;
+    private int dragStartOffset = 0;
     private int x, y, w, h;
     private Font font;
     /**
@@ -359,6 +362,48 @@ public class TopSellersScreen {
                 && my >= refreshBtnY && my < refreshBtnY + buttonSize()) {
             NetworkHandler.sendToServer(new RequestTradeStatsPacket());
             refresh();
+            return true;
+        }
+
+        // Scrollbar drag start
+        if (button == 0) {
+            int listTop = y + toolbarHeight() + colHdrHeight() + 2;
+            int listBot = y + h - footerHeight();
+            int listH = listBot - listTop;
+            int bx = x + w - 5;
+            if (mx >= bx && mx < bx + 4 && my >= listTop && my < listTop + listH) {
+                scrollDragging = true;
+                dragStartY = my;
+                dragStartOffset = scrollOffset;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    public boolean mouseDragged(double mx, double my, int button, double dx, double dy) {
+        if (scrollDragging && button == 0) {
+            List<Map.Entry<String, Long>> entries = getActiveEntries();
+            int listTop = y + toolbarHeight() + colHdrHeight() + 2;
+            int listBot = y + h - footerHeight();
+            int listH = listBot - listTop;
+            int rowsVis = Math.max(1, listH / rowHeight());
+            int maxScroll = Math.max(0, entries.size() - rowsVis);
+            int thumbH = Math.max(16, entries.isEmpty() ? listH : listH * rowsVis / entries.size());
+            int trackH = listH - thumbH;
+            if (trackH > 0) {
+                int delta = (int) Math.round((my - dragStartY) * maxScroll / (double) trackH);
+                scrollOffset = Mth.clamp(dragStartOffset + delta, 0, maxScroll);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    public boolean mouseReleased(double mx, double my, int button) {
+        if (scrollDragging && button == 0) {
+            scrollDragging = false;
             return true;
         }
         return false;

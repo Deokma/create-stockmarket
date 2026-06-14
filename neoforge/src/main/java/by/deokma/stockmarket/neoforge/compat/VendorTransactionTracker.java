@@ -1,6 +1,6 @@
 package by.deokma.stockmarket.neoforge.compat;
 
-import by.deokma.stockmarket.neoforge.market.TradeStatsSavedData;
+import by.deokma.stockmarket.market.TradeStatsSavedData;
 import dev.ithundxr.createnumismatics.content.vendor.VendorBlockEntity;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;

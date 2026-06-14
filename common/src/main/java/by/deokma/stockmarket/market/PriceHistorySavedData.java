@@ -1,4 +1,4 @@
-package by.deokma.stockmarket.neoforge.market;
+package by.deokma.stockmarket.market;
 
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
@@ -11,6 +11,12 @@ import net.minecraft.world.level.storage.DimensionDataStorage;
 
 import java.util.*;
 
+/**
+ * Persists price history snapshots across server restarts.
+ * Stored as "stockmarket_price_history.dat" in the overworld data directory.
+ *
+ * {@link SavedData} is a vanilla Minecraft class — available on both NeoForge and Fabric.
+ */
 public class PriceHistorySavedData extends SavedData {
 
     public static final String NAME = "stockmarket_price_history";
@@ -18,16 +24,21 @@ public class PriceHistorySavedData extends SavedData {
 
     private final Map<String, List<Integer>> history = new HashMap<>();
 
+    // ── Factory ───────────────────────────────────────────────────────────────
+
     public static PriceHistorySavedData getOrCreate(MinecraftServer server) {
         DimensionDataStorage storage = server.overworld().getDataStorage();
         return storage.computeIfAbsent(
                 new SavedData.Factory<>(
                         PriceHistorySavedData::new,
-                        (tag, registries) -> PriceHistorySavedData.load(tag, registries)
+                        (tag, registries) -> PriceHistorySavedData.load(tag, registries),
+                        null
                 ),
                 NAME
         );
     }
+
+    // ── Public API ────────────────────────────────────────────────────────────
 
     public void addSnapshot(String itemId, int avgPrice) {
         List<Integer> list = history.computeIfAbsent(itemId, k -> new ArrayList<>());
@@ -47,6 +58,8 @@ public class PriceHistorySavedData extends SavedData {
     public List<Integer> getHistory(String itemId) {
         return List.copyOf(history.getOrDefault(itemId, List.of()));
     }
+
+    // ── Serialization ─────────────────────────────────────────────────────────
 
     @Override
     public CompoundTag save(CompoundTag tag, HolderLookup.Provider registries) {

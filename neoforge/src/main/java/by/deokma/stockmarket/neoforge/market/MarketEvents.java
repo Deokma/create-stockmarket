@@ -1,5 +1,6 @@
 package by.deokma.stockmarket.neoforge.market;
 
+import by.deokma.stockmarket.market.MarketRegistry;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -17,7 +18,7 @@ public final class MarketEvents {
     private static void onServerTick(ServerTickEvent.Post event) {
         if (++tickCounter >= SNAPSHOT_INTERVAL) {
             tickCounter = 0;
-            MarketRegistry.takeSnapshot(event.getServer());
+            MarketRegistry.snapshot(event.getServer());
         }
     }
 }

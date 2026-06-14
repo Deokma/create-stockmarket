@@ -3,6 +3,7 @@ package by.deokma.stockmarket.neoforge;
 import by.deokma.stockmarket.CreateStockMarket;
 import by.deokma.stockmarket.block.MarketTerminalBlock;
 import by.deokma.stockmarket.block.MarketTerminalBlockEntity;
+import by.deokma.stockmarket.item.MarketRemoteItem;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -39,6 +40,12 @@ public final class ModBlocks {
     public static final Supplier<BlockItem> MARKET_TERMINAL_ITEM = ITEMS.register(
             "market_terminal",
             () -> new BlockItem(MARKET_TERMINAL.get(), new Item.Properties())
+    );
+
+    /** Handheld remote — opens the Stock Market screen from anywhere. */
+    public static final Supplier<MarketRemoteItem> MARKET_REMOTE = ITEMS.register(
+            "market_remote",
+            () -> new MarketRemoteItem(new Item.Properties().stacksTo(1))
     );
 
     public static final Supplier<BlockEntityType<MarketTerminalBlockEntity>> MARKET_TERMINAL_BE =

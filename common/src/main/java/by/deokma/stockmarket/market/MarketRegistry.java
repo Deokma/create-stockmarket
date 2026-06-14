@@ -1,10 +1,7 @@
-package by.deokma.stockmarket.neoforge.market;
+package by.deokma.stockmarket.market;
 
-import by.deokma.stockmarket.market.IMarketRegistry;
-import by.deokma.stockmarket.market.MarketEntry;
-import by.deokma.stockmarket.market.PriceTrend;
-import by.deokma.stockmarket.neoforge.shop.VendorRegistry;
 import by.deokma.stockmarket.shop.ShopEntry;
+import by.deokma.stockmarket.shop.VendorRegistry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
@@ -15,16 +12,30 @@ import org.apache.logging.log4j.Logger;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Aggregates shop data from {@link VendorRegistry} into {@link MarketEntry} snapshots.
+ *
+ * Fully platform-agnostic — depends only on vanilla Minecraft classes and common module code.
+ */
 public final class MarketRegistry implements IMarketRegistry {
 
     private static final Logger LOGGER = LogManager.getLogger("stockmarket");
 
+    // ── IMarketRegistry ───────────────────────────────────────────────────────
+
     @Override
-    public List<MarketEntry> buildEntries() {
-        return List.of();
+    public List<MarketEntry> buildEntries(MinecraftServer server) {
+        return build(server);
     }
 
-    public static List<MarketEntry> buildEntries(MinecraftServer server) {
+    @Override
+    public void takeSnapshot(MinecraftServer server) {
+        snapshot(server);
+    }
+
+    // ── Static helpers (called from platform event handlers) ──────────────────
+
+    public static List<MarketEntry> build(MinecraftServer server) {
         try {
             List<ShopEntry> shops = VendorRegistry.getAll();
             PriceHistorySavedData histData = PriceHistorySavedData.getOrCreate(server);
@@ -38,8 +49,8 @@ public final class MarketRegistry implements IMarketRegistry {
 
             List<MarketEntry> result = new ArrayList<>();
             for (Map.Entry<ResourceLocation, List<ShopEntry>> group : grouped.entrySet()) {
-                ResourceLocation itemId = group.getKey();
-                List<ShopEntry> entries = group.getValue();
+                ResourceLocation itemId  = group.getKey();
+                List<ShopEntry> entries  = group.getValue();
 
                 // Prices only from VENDOR SELL shops
                 List<Integer> vendorSellPrices = entries.stream()
@@ -77,9 +88,9 @@ public final class MarketRegistry implements IMarketRegistry {
         }
     }
 
-    public static void takeSnapshot(MinecraftServer server) {
+    public static void snapshot(MinecraftServer server) {
         try {
-            List<MarketEntry> entries = buildEntries(server);
+            List<MarketEntry> entries = build(server);
             PriceHistorySavedData histData = PriceHistorySavedData.getOrCreate(server);
             for (MarketEntry entry : entries) {
                 if (entry.avgPrice() > 0) {
@@ -90,6 +101,8 @@ public final class MarketRegistry implements IMarketRegistry {
             LOGGER.debug("[MarketRegistry] takeSnapshot failed: {}", e.getMessage());
         }
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     static PriceTrend computeTrend(List<Integer> history) {
         if (history.size() < 2) return PriceTrend.STABLE;
