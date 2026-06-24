@@ -7,6 +7,7 @@ import by.deokma.stockmarket.neoforge.network.RequestShopListPacket;
 import by.deokma.stockmarket.neoforge.network.RequestTradeStatsPacket;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
@@ -142,7 +143,11 @@ public class StockMarketScreen extends Screen {
         // Bottom accent line — black, flush with panel top border
         gfx.fill(px, py + tabH - 1, px + panelW(), py + tabH, 0xFF000000);
 
-        String[] labels = {"Shops", "Market", "Top Sellers"};
+        String[] labels = {
+                I18n.get("screen.stockmarket.tab_shops"),
+                I18n.get("screen.stockmarket.tab_market"),
+                I18n.get("screen.stockmarket.tab_top_sellers")
+        };
         ResourceLocation[] icons = {
                 GuiTextures.ICON_SHOPS,
                 GuiTextures.ICON_MARKET,
@@ -185,7 +190,11 @@ public class StockMarketScreen extends Screen {
     public boolean mouseClicked(double mx, double my, int button) {
         int px = panelX(), py = panelY();
 
-        String[] labels = {"Shops", "Market", "Top Sellers"};
+        String[] labels = {
+                I18n.get("screen.stockmarket.tab_shops"),
+                I18n.get("screen.stockmarket.tab_market"),
+                I18n.get("screen.stockmarket.tab_top_sellers")
+        };
         int iconSize = Math.min(GuiTextures.Dimensions.ICON_W, tabHeight() - 6);
         int tx = px + 8;
         for (int i = 0; i < labels.length; i++) {

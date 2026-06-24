@@ -7,6 +7,7 @@ import by.deokma.stockmarket.shop.ShopListData;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
 
@@ -122,11 +123,11 @@ public class TopSellersScreen {
 
         if (entries.isEmpty()) {
             String msg = activeTab == LeaderboardTab.SALES
-                    ? "No sales data yet"
-                    : "No shops indexed yet";
+                    ? I18n.get("screen.stockmarket.ts_no_sales")
+                    : I18n.get("screen.stockmarket.ts_no_shops");
             String sub = activeTab == LeaderboardTab.SALES
-                    ? "Click refresh after players complete trades."
-                    : "Open Shops once, or place Vendor / Table Cloth blocks.";
+                    ? I18n.get("screen.stockmarket.ts_no_sales_sub")
+                    : I18n.get("screen.stockmarket.ts_no_shops_sub");
             gfx.drawString(font, msg,
                     x + w / 2 - font.width(msg) / 2,
                     listTop + listH / 2 - font.lineHeight, TEXT_DIM, false);
@@ -151,11 +152,13 @@ public class TopSellersScreen {
         UIHelper.blitScaled(gfx, GuiTextures.TOOLBAR, x, y, w, toolH,
                 GuiTextures.Dimensions.TOOLBAR_W, GuiTextures.Dimensions.TOOLBAR_H);
 
-        String title = "Top sellers";
+        String title = I18n.get("screen.stockmarket.ts_title");
         gfx.drawString(font, title, x + pad, y + (toolH - font.lineHeight) / 2, TEXT, false);
 
+        String bySales = I18n.get("screen.stockmarket.ts_by_sales");
+        String byShops = I18n.get("screen.stockmarket.ts_by_shops");
         int tabPadX = 6;
-        int tabW = Math.max(70, font.width("By sales") + tabPadX * 2);
+        int tabW = Math.max(70, Math.max(font.width(bySales), font.width(byShops)) + tabPadX * 2);
         int tabH = Math.min(16, toolH - 4);
         int tabsTotalW = tabW * 2 + 4;
         int tabsX = x + w / 2 - tabsTotalW / 2;
@@ -172,13 +175,15 @@ public class TopSellersScreen {
         shopsTabH = tabH;
 
         drawTab(gfx, salesTabX, salesTabY, salesTabW, salesTabH,
-                "By sales", activeTab == LeaderboardTab.SALES);
+                bySales, activeTab == LeaderboardTab.SALES);
         drawTab(gfx, shopsTabX, shopsTabY, shopsTabW, shopsTabH,
-                "By shops", activeTab == LeaderboardTab.SHOPS);
+                byShops, activeTab == LeaderboardTab.SHOPS);
 
         if (lastRefreshMs > 0) {
             long secAgo = (System.currentTimeMillis() - lastRefreshMs) / 1000;
-            String ts = secAgo < 60 ? secAgo + "s ago" : (secAgo / 60) + "m ago";
+            String ts = secAgo < 60
+                    ? I18n.get("screen.stockmarket.time_sec_ago", secAgo)
+                    : I18n.get("screen.stockmarket.time_min_ago", secAgo / 60);
             gfx.drawString(font, ts, refreshBtnX - font.width(ts) - 4,
                     y + (toolH - 8) / 2, 0xFF888888, false);
         }
@@ -199,12 +204,14 @@ public class TopSellersScreen {
                 GuiTextures.Dimensions.COL_HEADER_W, GuiTextures.Dimensions.COL_HEADER_H);
 
         int colRank = 36;
-        String valueHeader = activeTab == LeaderboardTab.SALES ? "Sales" : "Shops";
+        String valueHeader = activeTab == LeaderboardTab.SALES
+                ? I18n.get("screen.stockmarket.ts_val_sales")
+                : I18n.get("screen.stockmarket.ts_val_shops");
         int colSales = Math.max(72, font.width("9,999,999 " + valueHeader.toLowerCase(Locale.ROOT)) + 8);
         int ty = top + 3;
 
         gfx.drawString(font, "#", x + pad + 2, ty, 0xFF5C4A00, false);
-        gfx.drawString(font, "Seller",
+        gfx.drawString(font, I18n.get("screen.stockmarket.ts_col_seller"),
                 x + pad + colRank + 2, ty, 0xFF5C4A00, false);
         gfx.drawString(font, valueHeader,
                 x + w - pad - colSales + 2, ty, 0xFF5C4A00, false);
@@ -315,12 +322,16 @@ public class TopSellersScreen {
         UIHelper.blitScaled(gfx, GuiTextures.FOOTER, x, fy + 1, w, footH - 1,
                 GuiTextures.Dimensions.FOOTER_W, GuiTextures.Dimensions.FOOTER_H);
 
-        String info = entries.size() + (entries.size() == 1 ? " seller" : " sellers");
+        String info = I18n.get(entries.size() == 1
+                ? "screen.stockmarket.ts_footer_one"
+                : "screen.stockmarket.ts_footer_many", entries.size());
         gfx.drawString(font, info, x + pad, fy + (footH - 8) / 2, TEXT_DIM, false);
 
         String note = activeTab == LeaderboardTab.SALES
-                ? (hasSalesData ? "Vendor, barter & Stock Keeper sales" : "No sales have been logged yet")
-                : "Ranked by indexed shops per seller";
+                ? (hasSalesData
+                    ? I18n.get("screen.stockmarket.ts_note_sales")
+                    : I18n.get("screen.stockmarket.ts_note_no_sales"))
+                : I18n.get("screen.stockmarket.ts_note_shops");
         gfx.drawString(font, note,
                 x + w - pad - font.width(note),
                 fy + (footH - 8) / 2,
@@ -328,7 +339,9 @@ public class TopSellersScreen {
     }
 
     private String formatCount(long value) {
-        String suffix = activeTab == LeaderboardTab.SALES ? " sales" : " shops";
+        String suffix = activeTab == LeaderboardTab.SALES
+                ? I18n.get("screen.stockmarket.ts_suffix_sales")
+                : I18n.get("screen.stockmarket.ts_suffix_shops");
         return String.format("%,d", value) + suffix;
     }
 

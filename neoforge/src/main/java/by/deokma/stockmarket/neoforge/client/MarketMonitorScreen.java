@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.Mth;
 
@@ -174,7 +175,7 @@ public class MarketMonitorScreen {
                 searchX + 4, searchY + (btnSize - font.lineHeight) / 2,
                 searchW - 8, font.lineHeight + 2,
                 Component.empty());
-        searchBox.setHint(Component.literal("Search..."));
+        searchBox.setHint(Component.translatable("screen.stockmarket.search_hint"));
         searchBox.setBordered(false);
         searchBox.setTextColor(0xFF888888);
         searchBox.setResponder(s -> {
@@ -292,9 +293,11 @@ public class MarketMonitorScreen {
         UIHelper.enableScissor(gfx, x, y + toolbarHeight(), w, h - toolbarHeight());
 
         if (MarketData.isLoading()) {
-            gfx.drawString(font, "Loading...", x + w / 2 - font.width("Loading...") / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
+            String loading = I18n.get("screen.stockmarket.loading");
+            gfx.drawString(font, loading, x + w / 2 - font.width(loading) / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
         } else if (vendorRows.isEmpty() && barterRows.isEmpty()) {
-            gfx.drawString(font, "No market data", x + w / 2 - font.width("No market data") / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
+            String empty = I18n.get("screen.stockmarket.market_empty");
+            gfx.drawString(font, empty, x + w / 2 - font.width(empty) / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
         } else {
             drawAllRows(gfx, listTop, rowsVis, mx, my);
             drawScrollBar(gfx, listTop, listH, rowsVis);
@@ -334,7 +337,9 @@ public class MarketMonitorScreen {
         // Last update timestamp — left of refresh button
         if (lastUpdateMs > 0) {
             long secAgo = (System.currentTimeMillis() - lastUpdateMs) / 1000;
-            String ts = secAgo < 60 ? secAgo + "s ago" : (secAgo / 60) + "m ago";
+            String ts = secAgo < 60
+                    ? I18n.get("screen.stockmarket.time_sec_ago", secAgo)
+                    : I18n.get("screen.stockmarket.time_min_ago", secAgo / 60);
             gfx.drawString(font, ts, refreshBtnX - font.width(ts) - 4,
                     y + (toolH - 8) / 2, 0xFF888888, false);
         }
@@ -352,7 +357,14 @@ public class MarketMonitorScreen {
 
         // Column headers: Item | Price | Change | Vol | Chart | Trend
         int[] widths = {colItem(), colPrice(), colChange(), colVol(), colSpark(), colTrend()};
-        String[] names = {"Item", "Price", "Change", "Vol", "Chart", "Trend"};
+        String[] names = {
+                I18n.get("screen.stockmarket.col_item"),
+                I18n.get("screen.stockmarket.col_price"),
+                I18n.get("screen.stockmarket.mcol_change"),
+                I18n.get("screen.stockmarket.mcol_vol"),
+                I18n.get("screen.stockmarket.mcol_chart"),
+                I18n.get("screen.stockmarket.mcol_trend")
+        };
         int cx = x + pad;
         for (int i = 0; i < names.length; i++) {
             // Vertical divider before each column (skip first)
@@ -410,20 +422,20 @@ public class MarketMonitorScreen {
                     UIHelper.blitScaled(gfx, GuiTextures.COL_HEADER, x, ry, w, rowH,
                             GuiTextures.Dimensions.COL_HEADER_W, GuiTextures.Dimensions.COL_HEADER_H);
                     int cx = x + pad;
-                    gfx.drawString(font, "Item", cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
+                    gfx.drawString(font, I18n.get("screen.stockmarket.col_item"), cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
                     cx += bcolItem();
                     gfx.fill(cx - 1, ry + 3, cx, ry + rowH - 3, 0x60000000);
                     gfx.fill(cx, ry + 3, cx + 1, ry + rowH - 3, 0x40FFFFFF);
-                    gfx.drawString(font, "Payment", cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
+                    gfx.drawString(font, I18n.get("screen.stockmarket.bcol_payment"), cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
                     cx += bcolPayment();
                     gfx.fill(cx - 1, ry + 3, cx, ry + rowH - 3, 0x60000000);
                     gfx.fill(cx, ry + 3, cx + 1, ry + rowH - 3, 0x40FFFFFF);
-                    gfx.drawString(font, "Sell", cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
+                    gfx.drawString(font, I18n.get("screen.stockmarket.bcol_sell"), cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
                     cx += bcolSell();
                     gfx.fill(cx - 1, ry + 3, cx, ry + rowH - 3, 0x60000000);
                     gfx.fill(cx, ry + 3, cx + 1, ry + rowH - 3, 0x40FFFFFF);
-                    gfx.drawString(font, "Buy", cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
-                    String label = "⇄ Barter";
+                    gfx.drawString(font, I18n.get("screen.stockmarket.bcol_buy"), cx + 2, ry + (rowH - 8) / 2, 0xFF5C4A00, false);
+                    String label = I18n.get("screen.stockmarket.barter_label");
                     gfx.drawString(font, label, x + w - pad - font.width(label) - scrollBarW - 4,
                             ry + (rowH - 8) / 2, Colors.GREEN, false);
                 }
@@ -633,29 +645,28 @@ public class MarketMonitorScreen {
         tt.add(e.displayStack().getHoverName().copy().withStyle(s -> s.withColor(Colors.GOLD)));
 
         // Price info
-        tt.add(Component.literal("§7Avg Price: §f" + UIHelper.formatPrice(e.avgPrice())));
-        tt.add(Component.literal("§7Min Price: §f" + UIHelper.formatPrice(e.minPrice())));
+        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_avg_price", UIHelper.formatPrice(e.avgPrice()))));
+        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_min_price", UIHelper.formatPrice(e.minPrice()))));
 
         // % change
         double pct = priceChangePct(e);
         String pctStr = UIHelper.formatChangePct(pct);
         String pctColored = pct > 0.05 ? "§a" + pctStr : pct < -0.05 ? "§c" + pctStr : "§7" + pctStr;
-        tt.add(Component.literal("§724h Change: " + pctColored));
+        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_change_24h", pctColored)));
 
         // Volume
         int vol = e.sellCount() + e.buyCount();
-        tt.add(Component.literal("§7Volume: §f" + vol
-                + " §8(§a" + e.sellCount() + " sell §8/ §b" + e.buyCount() + " buy§8)"));
+        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_volume", vol, e.sellCount(), e.buyCount())));
 
         // Trend
         String ts = switch (e.trend()) {
-            case RISING -> "§a▲ Rising";
-            case FALLING -> "§c▼ Falling";
-            default -> "§7— Stable";
+            case RISING -> I18n.get("screen.stockmarket.trend_rising");
+            case FALLING -> I18n.get("screen.stockmarket.trend_falling");
+            default -> I18n.get("screen.stockmarket.trend_stable");
         };
-        tt.add(Component.literal("§7Trend: " + ts));
+        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_trend", ts)));
 
-        if (vol >= HOT_VOLUME) tt.add(Component.literal("§6🔥 High activity"));
+        if (vol >= HOT_VOLUME) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_high_activity")));
 
         gfx.renderTooltip(font, tt.stream().map(Component::getVisualOrderText).collect(Collectors.toList()), mx, my);
 
@@ -670,13 +681,13 @@ public class MarketMonitorScreen {
     private void drawBarterTooltip(GuiGraphics gfx, MarketEntry e, int mx, int my) {
         List<Component> tt = new ArrayList<>();
         tt.add(e.displayStack().getHoverName().copy().withStyle(s -> s.withColor(Colors.GOLD)));
-        tt.add(Component.literal("§8Create TableCloth Shop"));
+        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_tablecloth")));
         if (!e.barterItem().isEmpty()) {
             String pay = e.barterItem().getHoverName().getString()
                     + (e.barterItem().getCount() > 1 ? " x" + e.barterItem().getCount() : "");
-            tt.add(Component.literal("§7Payment: §f" + pay));
+            tt.add(Component.literal(I18n.get("screen.stockmarket.tt_payment", pay)));
         }
-        tt.add(Component.literal("§7Sellers: §a" + e.sellCount() + "  §7Buyers: §b" + e.buyCount()));
+        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_sellers_buyers", e.sellCount(), e.buyCount())));
         gfx.renderTooltip(font, tt.stream().map(Component::getVisualOrderText).collect(Collectors.toList()), mx, my);
     }
 
@@ -727,22 +738,23 @@ public class MarketMonitorScreen {
         int textY = fy + (footH - font.lineHeight) / 2;
 
         // Left: item counts
-        String info = vCount + " listed  " + bCount + " barter";
+        String info = I18n.get("screen.stockmarket.footer_listed", vCount, bCount);
         gfx.drawString(font, info, x + pad, textY, Colors.TEXT_DIM, false);
         int leftEdge = x + pad + font.width(info) + 6;
 
         // Right: sort hint
-        String hint = "↑↓ sort";
+        String hint = I18n.get("screen.stockmarket.footer_sort");
         int rightEdge = x + w - pad - font.width(hint) - 4;
         gfx.drawString(font, hint, rightEdge, textY, Colors.TEXT_DIM, false);
 
         // Centre: top traders — fits between leftEdge and rightEdge
         if (!topTraders.isEmpty()) {
             boolean hasRealData = !TradeStatsData.getTopSellers().isEmpty();
-            String labelPlain = hasRealData ? "🏆 " : "Top Seller ";
+            String topSeller = I18n.get("screen.stockmarket.top_seller");
+            String labelPlain = hasRealData ? "🏆 " : topSeller;
             // No §-colour code on the text label so the Colors.TEXT_DIM param applies (matches the
             // neighbouring footer labels). The trophy keeps its gold §6 code.
-            String labelStyled = hasRealData ? "§6🏆 " : "Top Seller ";
+            String labelStyled = hasRealData ? "§6🏆 " : topSeller;
             int iconSize = UIHelper.playerHeadIconSize(footH);
             int tx = leftEdge;
 

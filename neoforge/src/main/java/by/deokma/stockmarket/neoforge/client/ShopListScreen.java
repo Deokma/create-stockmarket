@@ -7,6 +7,7 @@ import by.deokma.stockmarket.shop.ShopListData;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
@@ -206,7 +207,7 @@ public class ShopListScreen extends Screen {
                 searchX + 4, searchY + (searchH - font.lineHeight) / 2,
                 searchW - 8, font.lineHeight + 2,
                 Component.empty());
-        searchBox.setHint(Component.literal("Search..."));
+        searchBox.setHint(Component.translatable("screen.stockmarket.search_hint"));
         searchBox.setBordered(false);
         searchBox.setTextColor(0xFF888888);
         searchBox.setResponder(s -> {
@@ -388,9 +389,11 @@ public class ShopListScreen extends Screen {
         scrollOffset = Mth.clamp(scrollOffset, 0, maxScroll);
 
         if (loading) {
-            gfx.drawString(font, "Loading...", tx + tw / 2 - font.width("Loading...") / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
+            String loadingMsg = I18n.get("screen.stockmarket.loading");
+            gfx.drawString(font, loadingMsg, tx + tw / 2 - font.width(loadingMsg) / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
         } else if (displayRows.isEmpty()) {
-            gfx.drawString(font, "No shops found", tx + tw / 2 - font.width("No shops found") / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
+            String emptyMsg = I18n.get("screen.stockmarket.no_shops");
+            gfx.drawString(font, emptyMsg, tx + tw / 2 - font.width(emptyMsg) / 2, listTop + listH / 2, Colors.TEXT_DIM, false);
         } else {
             drawRows(gfx, tx, tw, listTop, rowsVis, mouseX, mouseY);
             drawScrollBar(gfx, tx, tw, listTop, listH, rowsVis);
@@ -464,7 +467,9 @@ public class ShopListScreen extends Screen {
 
         int tabX = tx + pad;
         for (String tab : List.of("all", "fav")) {
-            String label = tab.equals("all") ? "All" : "★ Fav";
+            String label = tab.equals("all")
+                    ? I18n.get("screen.stockmarket.tab_all")
+                    : I18n.get("screen.stockmarket.tab_fav");
             int tabW = font.width(label) + 12;
             boolean active = tab.equals(activeTab);
 
@@ -501,7 +506,14 @@ public class ShopListScreen extends Screen {
                 GuiTextures.Dimensions.COL_HEADER_W, GuiTextures.Dimensions.COL_HEADER_H);
 
         int[] widths = {COL_FAV, colItem(), colPrice(), colOwner(), colMode(), colDim()};
-        String[] names = {"", "Item", "Price", "Owner", "Mode", "Dim"};
+        String[] names = {
+                "",
+                I18n.get("screen.stockmarket.col_item"),
+                I18n.get("screen.stockmarket.col_price"),
+                I18n.get("screen.stockmarket.col_owner"),
+                I18n.get("screen.stockmarket.col_mode"),
+                I18n.get("screen.stockmarket.col_dim")
+        };
         int[] sortIdx = {-1, 0, 1, 2, 3, 4};
         int cx = tx + pad;
         for (int i = 0; i < names.length; i++) {
@@ -693,7 +705,7 @@ public class ShopListScreen extends Screen {
                     tt.add(row.offers.get(0).sellingItem().getHoverName().copy()
                             .withStyle(s -> s.withColor(Colors.GOLD)));
                 } else {
-                    tt.add(Component.literal("§6" + row.offers.size() + " §7products in store"));
+                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_products", row.offers.size())));
                     for (ShopEntry off : row.offers) {
                         ItemStack s = off.sellingItem();
                         String lineT = "§f• §r" + s.getHoverName().getString()
@@ -705,19 +717,19 @@ public class ShopListScreen extends Screen {
                     String ps = e.priceItem().isEmpty() ? "?"
                             : e.priceItem().getHoverName().getString()
                             + (e.priceItem().getCount() > 1 ? " x" + e.priceItem().getCount() : "");
-                    tt.add(Component.literal("§7Price: §f" + ps));
+                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_price", ps)));
                     tt.add(Component.literal(e.isTradeworks()
-                            ? "§8Create: Tradeworks"
-                            : "§8Create TableCloth Shop"));
+                            ? I18n.get("screen.stockmarket.tt_tradeworks")
+                            : I18n.get("screen.stockmarket.tt_tablecloth")));
                 } else {
-                    tt.add(Component.literal("§7Price: §f" + UIHelper.formatPrice(e.totalPriceInSpurs())));
-                    tt.add(Component.literal("§8Numismatics Vendor"));
+                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_price", UIHelper.formatPrice(e.totalPriceInSpurs()))));
+                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_vendor")));
                 }
-                tt.add(Component.literal("§7Owner: §b" + e.ownerName()));
-                tt.add(Component.literal("§7Mode: " + (sell ? "§cSELL" : "§aBUY")));
-                tt.add(Component.literal("§7Pos: §f" + e.pos().toShortString()));
-                tt.add(Component.literal("§7Dim: §8" + e.dimensionId()));
-                if (fav) tt.add(Component.literal("§e★ Favourited"));
+                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_owner", e.ownerName())));
+                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_mode", sell ? "§cSELL" : "§aBUY")));
+                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_pos", e.pos().toShortString())));
+                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_dim", e.dimensionId())));
+                if (fav) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_favourited")));
                 gfx.renderTooltip(font,
                         tt.stream().map(Component::getVisualOrderText).collect(Collectors.toList()),
                         mouseX, mouseY);
@@ -760,7 +772,7 @@ public class ShopListScreen extends Screen {
                     tx + pad, fy + (footH - 8) / 2, Colors.TEXT_DIM, false);
         }
         // Compact hint — centred over the table area
-        String hint = "↕ scroll  col → sort  ★ fav";
+        String hint = I18n.get("screen.stockmarket.footer_hint");
         gfx.drawString(font, hint,
                 tx + tw / 2 - font.width(hint) / 2,
                 fy + (footH - 8) / 2, Colors.TEXT_DIM, false);
@@ -781,7 +793,7 @@ public class ShopListScreen extends Screen {
         boolean hover = mouseX >= x && mouseX < x + menuW && mouseY >= y && mouseY < y + menuH;
         gfx.fill(x - 1, y - 1, x + menuW + 1, y + menuH + 1, 0xCC000000);
         gfx.fill(x, y, x + menuW, y + menuH, hover ? 0xFFF0E5B5 : 0xFFE0D3A2);
-        gfx.drawString(font, "Add to map", x + 8, y + (menuH - 8) / 2, 0xFF2C2410, false);
+        gfx.drawString(font, I18n.get("screen.stockmarket.add_to_map"), x + 8, y + (menuH - 8) / 2, 0xFF2C2410, false);
     }
 
     private boolean isMapMenuButton(double mx, double my) {
@@ -894,7 +906,9 @@ public class ShopListScreen extends Screen {
         if (my >= tabY + 2 && my < tabY + 16) {
             int tabX = tx + pad;
             for (String tab : List.of("all", "fav")) {
-                String label = tab.equals("all") ? "All" : "★ Fav";
+                String label = tab.equals("all")
+                    ? I18n.get("screen.stockmarket.tab_all")
+                    : I18n.get("screen.stockmarket.tab_fav");
                 int tabW = font.width(label) + 8;
                 if (mx >= tabX && mx < tabX + tabW) {
                     activeTab = tab;

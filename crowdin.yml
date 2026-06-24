@@ -1,0 +1,40 @@
+# Crowdin configuration for Create: StockMarket
+# Docs: https://crowdin.github.io/crowdin-cli/configuration
+#
+# Fill in "project_id" after you create the project on Crowdin (Project → Settings → API),
+# and export your token before running the CLI / set it as a GitHub Action secret:
+#   export CROWDIN_PERSONAL_TOKEN=xxxxx
+#
+# Most people don't run the CLI at all — they use the Crowdin GitHub integration:
+#   Crowdin project → Integrations → GitHub → connect this repo. It reads this file,
+#   uploads en_us.json as the source, and opens PRs with translated <locale>.json files.
+
+project_id: "PUT_YOUR_PROJECT_ID_HERE"
+api_token_env: CROWDIN_PERSONAL_TOKEN
+base_path: "."
+preserve_hierarchy: true
+
+files:
+  - source: /neoforge/src/main/resources/assets/stockmarket/lang/en_us.json
+    translation: /neoforge/src/main/resources/assets/stockmarket/lang/%locale_with_underscore%.json
+    # Minecraft uses lowercase locale file names (ru_ru.json), but Crowdin's default
+    # placeholder yields ru_RU. This mapping forces the correct Minecraft codes.
+    languages_mapping:
+      locale_with_underscore:
+        uk: uk_ua
+        be: be_by
+        de: de_de
+        fr: fr_fr
+        es-ES: es_es
+        es-MX: es_mx
+        pt-BR: pt_br
+        pt-PT: pt_pt
+        it: it_it
+        nl: nl_nl
+        pl: pl_pl
+        cs: cs_cz
+        tr: tr_tr
+        zh-CN: zh_cn
+        zh-TW: zh_tw
+        ja: ja_jp
+        ko: ko_kr
