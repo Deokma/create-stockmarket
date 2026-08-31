@@ -116,14 +116,14 @@ public final class VendorTransactionTracker {
      */
     private static int readStockCount(VendorBlockEntity vendor) {
         try {
-            ItemStack template = vendor.getSellingItem();
+            ItemStack template = vendor.getFilterItem();
             if (template == null || template.isEmpty()) return -1;
 
             int total = 0;
             int size = vendor.getContainerSize();
             for (int i = 0; i < size; i++) {
                 ItemStack stack = vendor.getItem(i);
-                if (!stack.isEmpty() && ItemStack.isSameItem(stack, template)) {
+                if (!stack.isEmpty() && vendor.matchesFilterItem(stack)) {
                     total += stack.getCount();
                 }
             }

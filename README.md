@@ -12,7 +12,7 @@ Place the **Market Terminal**, right-click it — and get a live dashboard of ev
 | Mod | Required? |
 |-----|-----------|
 | [Create](https://modrinth.com/mod/create) 6.0.9+ | ✅ Required |
-| [Create: Numismatics](https://modrinth.com/mod/numismatics) 1.0.19+ | ⚠️ Optional |
+| [Create: Numismatics](https://modrinth.com/mod/numismatics) 1.1.0+ | ⚠️ Optional |
 | [Tradeworks](https://modrinth.com/mod/tradeworks) 1.0.0+ | ⚠️ Optional |
 | [Xaero's Minimap](https://modrinth.com/mod/xaeros-minimap) | ⚠️ Optional |
 
