@@ -53,8 +53,10 @@ public final class VendorIndexer {
             UUID ownerUuid = readOwnerNbt(vendor, server);
             if (ownerUuid == null) return;
 
-            ItemStack sellingItem = readSellingItem(vendor, server);
-            if (sellingItem == null || sellingItem.isEmpty()) return;
+            // Numismatics uses the filter slot as a matching rule. Its display item
+            // resolves the actual stock item for list and attribute filters.
+            ItemStack displayItem = vendor.getDisplayItem();
+            if (displayItem == null || displayItem.isEmpty()) return;
 
             SliderStylePriceBehaviour price = vendor.getBehaviour(SliderStylePriceBehaviour.TYPE);
             int spurs = price != null ? price.getTotalPrice() : 0;
@@ -68,7 +70,7 @@ public final class VendorIndexer {
             savedData.put(key, new ShopEntry(
                     vendor.getBlockPos(),
                     level.dimension().location().toString(),
-                    sellingItem.copy(),
+                    displayItem.copy(),
                     spurs,
                     ItemStack.EMPTY,
                     ownerUuid,
@@ -80,27 +82,6 @@ public final class VendorIndexer {
         } catch (Exception e) {
             LOGGER.debug("[VendorIndexer] indexVendor failed: {}", e.getMessage());
         }
-    }
-
-    /**
-     * Prefer API getter, but fall back to serialized BE NBT.
-     * Some stacks with rich data/components (e.g. enchanted books) may not be exposed reliably
-     * through the direct getter in every compat/runtime scenario.
-     */
-    private static ItemStack readSellingItem(VendorBlockEntity vendor, MinecraftServer server) {
-        ItemStack direct = vendor.getSellingItem();
-        if (direct != null && !direct.isEmpty()) return direct;
-        try {
-            CompoundTag tag = vendor.saveWithoutMetadata(server.registryAccess());
-            String[] candidates = {"SellingItem", "sellingItem", "Item", "item"};
-            for (String key : candidates) {
-                if (!tag.contains(key, net.minecraft.nbt.Tag.TAG_COMPOUND)) continue;
-                ItemStack parsed = ItemStack.parseOptional(server.registryAccess(), tag.getCompound(key));
-                if (!parsed.isEmpty()) return parsed;
-            }
-        } catch (Exception ignored) {
-        }
-        return direct == null ? ItemStack.EMPTY : direct;
     }
 
     private static UUID readOwnerNbt(VendorBlockEntity vendor, MinecraftServer server) {
