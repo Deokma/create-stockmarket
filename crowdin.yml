@@ -19,8 +19,11 @@ files:
     translation: /neoforge/src/main/resources/assets/stockmarket/lang/%locale_with_underscore%.json
     # Minecraft uses lowercase locale file names (ru_ru.json), but Crowdin's default
     # placeholder yields ru_RU. This mapping forces the correct Minecraft codes.
+    # Every target language needs an entry: an unmapped one falls back to Crowdin's
+    # mixed-case code (e.g. ce_CE.json), and Minecraft never loads such a file.
     languages_mapping:
       locale_with_underscore:
+        ru: ru_ru
         uk: uk_ua
         be: be_by
         de: de_de
@@ -38,3 +41,15 @@ files:
         zh-TW: zh_tw
         ja: ja_jp
         ko: ko_kr
+        sv-SE: sv_se
+        fi: fi_fi
+        da: da_dk
+        no: no_no
+        hu: hu_hu
+        ro: ro_ro
+        el: el_gr
+        vi: vi_vn
+        id: id_id
+        th: th_th
+        ar: ar_sa
+        kk: kk_kz

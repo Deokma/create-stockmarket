@@ -39,8 +39,8 @@ public class MarketMonitorScreen {
     // Sparkline dimensions (inline in row)
     private static final int SPARK_W = 40;
     private static final int SPARK_H = 12;
-    // "Hot" threshold — rows with volume >= this get highlighted
-    private static final int HOT_VOLUME = 5;
+    // "Hot" threshold — rows with volume >= this get highlighted.
+    // Server-configured; arrives with the market data (see MarketData.hotVolume()).
 
 
     private List<MarketEntry> vendorRows = new ArrayList<>();
@@ -215,7 +215,7 @@ public class MarketMonitorScreen {
 
         List<MarketEntry> all = MarketData.get().stream()
                 .filter(e -> q.isEmpty()
-                        || e.displayStack().getHoverName().getString().toLowerCase(Locale.ROOT).contains(q)
+                        || e.labelText().toLowerCase(Locale.ROOT).contains(q)
                         || (!e.barterItem().isEmpty() && e.barterItem().getHoverName().getString()
                         .toLowerCase(Locale.ROOT).contains(q)))
                 .filter(e -> sidebar == null || (sidebar.matchesCurrency(e) && sidebar.matchesItem(e)))
@@ -225,12 +225,12 @@ public class MarketMonitorScreen {
                 .filter(e -> !e.isBarterOnly())
                 .sorted((a, b) -> {
                     int cmp = switch (sortCol) {
-                        case 1 -> Integer.compare(b.avgPrice(), a.avgPrice()); // default: highest price first
+                        // default: highest price first — per item, since stocks quote different lot sizes
+                        case 1 -> Double.compare(unitPrice(b), unitPrice(a));
                         case 2 -> Double.compare(priceChangePct(b), priceChangePct(a));
                         case 3 -> Integer.compare(b.sellCount() + b.buyCount(), a.sellCount() + a.buyCount());
                         case 4 -> a.trend().compareTo(b.trend());
-                        default -> a.displayStack().getHoverName().getString()
-                                .compareToIgnoreCase(b.displayStack().getHoverName().getString());
+                        default -> a.labelText().compareToIgnoreCase(b.labelText());
                     };
                     return sortAsc ? cmp : -cmp;
                 })
@@ -238,14 +238,17 @@ public class MarketMonitorScreen {
 
         barterRows = all.stream()
                 .filter(MarketEntry::isBarterOnly)
-                .sorted(Comparator.comparing(e -> e.displayStack().getHoverName().getString(),
-                        String::compareToIgnoreCase))
+                .sorted(Comparator.comparing(MarketEntry::labelText, String::compareToIgnoreCase))
                 .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /**
      * % change between oldest and newest snapshot. Returns 0 if < 2 snapshots.
      */
+    private static double unitPrice(MarketEntry e) {
+        return e.avgPrice() / (double) Math.max(1, e.lotSize());
+    }
+
     private static double priceChangePct(MarketEntry e) {
         List<Integer> h = e.priceHistory();
         if (h.size() < 2) return 0.0;
@@ -461,7 +464,7 @@ public class MarketMonitorScreen {
         int rowH = rowHeight();
         boolean hov = mx >= rx && mx < rx + usableW && my >= ry && my < ry + rowH;
         int volume = e.sellCount() + e.buyCount();
-        boolean hot = volume >= HOT_VOLUME;
+        boolean hot = volume >= MarketData.hotVolume();
 
         // Row background — use textures
         if (hov) {
@@ -485,13 +488,15 @@ public class MarketMonitorScreen {
 
         // ── Item icon + name ──────────────────────────────────────────────────
         gfx.renderItem(e.displayStack(), cx, ry + (rowH - 16) / 2);
-        String name = e.displayStack().getHoverName().getString();
+        String name = e.labelText();
         if (font.width(name) > colItem() - 22) name = font.plainSubstrByWidth(name, colItem() - 26) + "…";
         gfx.drawString(font, name, cx + 18, ty, Colors.TEXT, false);
         cx += colItem();
 
-        // ── Price (avg) ───────────────────────────────────────────────────────
-        gfx.drawString(font, UIHelper.formatPrice(e.avgPrice()), cx + 2, ty, Colors.GOLD, false);
+        // ── Price (avg, for the stock's lot size) ─────────────────────────────
+        String price = UIHelper.formatLotPrice(e.avgPrice(), e.lotSize());
+        if (font.width(price) > colPrice() - 4) price = font.plainSubstrByWidth(price, colPrice() - 8) + "…";
+        gfx.drawString(font, price, cx + 2, ty, Colors.GOLD, false);
         cx += colPrice();
 
         // ── % Change ─────────────────────────────────────────────────────────
@@ -600,14 +605,16 @@ public class MarketMonitorScreen {
 
         // Selling item
         gfx.renderItem(e.displayStack(), cx, ry + (rowH - 16) / 2);
-        String name = e.displayStack().getHoverName().getString();
+        String name = e.labelText();
         if (font.width(name) > bcolItem() - 22) name = font.plainSubstrByWidth(name, bcolItem() - 26) + "…";
         gfx.drawString(font, name, cx + 18, ty, Colors.TEXT, false);
         cx += bcolItem();
 
         // Payment item (icon + name)
         if (!e.barterItem().isEmpty()) {
-            gfx.renderItem(e.barterItem(), cx, ry + (rowH - 16) / 2);
+            // The stack's count is the asking amount and is spelled out in the label below,
+            // so the icon is drawn without its count badge.
+            gfx.renderItem(e.barterItem().copyWithCount(1), cx, ry + (rowH - 16) / 2);
             String payName = e.barterItem().getHoverName().getString();
             if (e.barterItem().getCount() > 1) payName = "x" + e.barterItem().getCount() + " " + payName;
             int maxPay = bcolPayment() - 22;
@@ -642,11 +649,12 @@ public class MarketMonitorScreen {
 
     private void drawVendorTooltip(GuiGraphics gfx, MarketEntry e, int mx, int my) {
         List<Component> tt = new ArrayList<>();
-        tt.add(e.displayStack().getHoverName().copy().withStyle(s -> s.withColor(Colors.GOLD)));
+        tt.add(e.label().copy().withStyle(s -> s.withColor(Colors.GOLD)));
 
         // Price info
         tt.add(Component.literal(I18n.get("screen.stockmarket.tt_avg_price", UIHelper.formatPrice(e.avgPrice()))));
         tt.add(Component.literal(I18n.get("screen.stockmarket.tt_min_price", UIHelper.formatPrice(e.minPrice()))));
+        if (e.lotSize() > 1) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_lot_size", e.lotSize())));
 
         // % change
         double pct = priceChangePct(e);
@@ -666,7 +674,7 @@ public class MarketMonitorScreen {
         };
         tt.add(Component.literal(I18n.get("screen.stockmarket.tt_trend", ts)));
 
-        if (vol >= HOT_VOLUME) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_high_activity")));
+        if (vol >= MarketData.hotVolume()) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_high_activity")));
 
         gfx.renderTooltip(font, tt.stream().map(Component::getVisualOrderText).collect(Collectors.toList()), mx, my);
 
@@ -680,7 +688,7 @@ public class MarketMonitorScreen {
 
     private void drawBarterTooltip(GuiGraphics gfx, MarketEntry e, int mx, int my) {
         List<Component> tt = new ArrayList<>();
-        tt.add(e.displayStack().getHoverName().copy().withStyle(s -> s.withColor(Colors.GOLD)));
+        tt.add(e.label().copy().withStyle(s -> s.withColor(Colors.GOLD)));
         tt.add(Component.literal(I18n.get("screen.stockmarket.tt_tablecloth")));
         if (!e.barterItem().isEmpty()) {
             String pay = e.barterItem().getHoverName().getString()

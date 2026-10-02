@@ -4,6 +4,7 @@ import by.deokma.stockmarket.shop.ShopEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.*;
@@ -19,10 +20,19 @@ public class ShopFilterSidePanel {
 
     private static String typeDisplayLabel(String key) {
         return switch (key) {
-            case "VENDOR" -> "Vendor";
-            case "TABLECLOTH" -> "Table Cloth";
-            case "TRADEWORKS" -> "Tradeworks";
+            case "VENDOR" -> I18n.get("screen.stockmarket.type_vendor");
+            case "TABLECLOTH" -> I18n.get("screen.stockmarket.type_tablecloth");
+            case "TRADEWORKS" -> I18n.get("screen.stockmarket.type_tradeworks");
             default -> key;
+        };
+    }
+
+    /** Localised SELL / BUY; the raw mode string stays the filter key. */
+    static String modeDisplayLabel(String mode) {
+        return switch (mode) {
+            case "SELL" -> I18n.get("screen.stockmarket.mode_sell");
+            case "BUY" -> I18n.get("screen.stockmarket.mode_buy");
+            default -> mode;
         };
     }
 
@@ -81,7 +91,6 @@ public class ShopFilterSidePanel {
 
     private int currencyScroll = 0;
     private int itemsScroll = 0;
-    private int ownerScroll = 0;
     /**
      * Vertical scroll offset for the whole sidebar panel
      */
@@ -130,13 +139,13 @@ public class ShopFilterSidePanel {
                 currIcon = e.priceItem().copyWithCount(1);
             } else if (!e.usesItemPrice() && e.totalPriceInSpurs() > 0) {
                 // Numismatics Vendor — show the dominant coin denomination
-                currKey = dominantCoinKey(e.totalPriceInSpurs());
-                currLabel = dominantCoinLabel(e.totalPriceInSpurs());
-                currIcon = coinIcon(currKey);
+                currKey = UIConstants.Coins.dominantKey(e.totalPriceInSpurs());
+                currLabel = UIConstants.Coins.dominantLabel(e.totalPriceInSpurs());
+                currIcon = UIConstants.Coins.icon(currKey);
             } else {
                 // Free / no price
                 currKey = "free";
-                currLabel = "Free";
+                currLabel = I18n.get("screen.stockmarket.price_free");
                 currIcon = ItemStack.EMPTY;
             }
             currMap.merge(currKey,
@@ -191,7 +200,7 @@ public class ShopFilterSidePanel {
                 currKey = net.minecraft.core.registries.BuiltInRegistries.ITEM
                         .getKey(e.priceItem().getItem()).toString();
             } else if (!e.usesItemPrice() && e.totalPriceInSpurs() > 0) {
-                currKey = dominantCoinKey(e.totalPriceInSpurs());
+                currKey = UIConstants.Coins.dominantKey(e.totalPriceInSpurs());
             } else {
                 currKey = "free";
             }
@@ -217,27 +226,27 @@ public class ShopFilterSidePanel {
 
         int cy = y + 2 - scrollY;
 
-        cy = drawSimpleSection(gfx, mx, my, cy, "Mode",
+        cy = drawSimpleSection(gfx, mx, my, cy, I18n.get("screen.stockmarket.filter_mode"),
                 List.of("SELL", "BUY"), modeCounts, activeModes, modeCollapsed,
-                k -> k.equals("SELL") ? C_RED : C_GREEN);
+                k -> k.equals("SELL") ? C_RED : C_GREEN, ShopFilterSidePanel::modeDisplayLabel);
         cy += GAP;
 
         cy = drawTypeSection(gfx, mx, my, cy);
         cy += GAP;
 
-        cy = drawIconSection(gfx, mx, my, cy, "Currency",
+        cy = drawIconSection(gfx, mx, my, cy, I18n.get("screen.stockmarket.filter_currency"),
                 currencies, activeCurrencies, currencyCollapsed, currencyScroll);
         cy += GAP;
 
-        cy = drawIconSection(gfx, mx, my, cy, "Items",
+        cy = drawIconSection(gfx, mx, my, cy, I18n.get("screen.stockmarket.filter_items"),
                 items, activeItems, itemsCollapsed, itemsScroll);
         cy += GAP;
 
         cy = drawOwnerSection(gfx, mx, my, cy);
         cy += GAP;
 
-        cy = drawSimpleSection(gfx, mx, my, cy, "Dimension",
-                dims, dimCounts, activeDims, dimCollapsed, k -> C_DIM);
+        cy = drawSimpleSection(gfx, mx, my, cy, I18n.get("screen.stockmarket.filter_dimension"),
+                dims, dimCounts, activeDims, dimCollapsed, k -> C_DIM, k -> k);
 
         gfx.disableScissor();
 
@@ -260,7 +269,8 @@ public class ShopFilterSidePanel {
                                   String title, List<String> keys,
                                   Map<String, Integer> counts, Set<String> active,
                                   boolean collapsed,
-                                  java.util.function.Function<String, Integer> colorFn) {
+                                  java.util.function.Function<String, Integer> colorFn,
+                                  java.util.function.Function<String, String> labelFn) {
         int entryH = entryHeight();
         int pad = padding();
         startY = drawSectionHeader(gfx, mx, my, startY, title, active.size(), collapsed);
@@ -271,7 +281,7 @@ public class ShopFilterSidePanel {
             boolean isActive = active.contains(key);
             boolean hov = hit(mx, my, startY, entryH);
             drawRowBg(gfx, startY, entryH, isActive, hov);
-            String label = truncate(key, w - pad * 2 - font.width("99") - 4);
+            String label = truncate(labelFn.apply(key), w - pad * 2 - font.width("99") - 4);
             gfx.drawString(font, label, x + pad, startY + (entryH - 8) / 2,
                     isActive ? C_ACTIVE : colorFn.apply(key), false);
             drawCount(gfx, count, startY, entryH);
@@ -323,7 +333,8 @@ public class ShopFilterSidePanel {
     private int drawTypeSection(GuiGraphics gfx, int mx, int my, int startY) {
         int entryH = entryHeight();
         int pad = padding();
-        startY = drawSectionHeader(gfx, mx, my, startY, "Type", activeTypes.size(), typeCollapsed);
+        startY = drawSectionHeader(gfx, mx, my, startY, I18n.get("screen.stockmarket.filter_type"),
+                activeTypes.size(), typeCollapsed);
         if (typeCollapsed) return startY;
         for (String key : SHOP_TYPE_KEYS) {
             int count = typeCounts.getOrDefault(key, 0);
@@ -367,7 +378,8 @@ public class ShopFilterSidePanel {
     private int drawOwnerSection(GuiGraphics gfx, int mx, int my, int startY) {
         int entryH = entryHeight();
         int pad = padding();
-        startY = drawSectionHeader(gfx, mx, my, startY, "Owner", activeOwners.size(), ownerCollapsed);
+        startY = drawSectionHeader(gfx, mx, my, startY, I18n.get("screen.stockmarket.filter_owner"),
+                activeOwners.size(), ownerCollapsed);
         if (ownerCollapsed) return startY;
         for (String key : owners) {
             boolean isActive = activeOwners.contains(key);
@@ -508,14 +520,14 @@ public class ShopFilterSidePanel {
             currencyCollapsed = !currencyCollapsed;
             return true;
         }
+        // Every list below is laid out exactly as render() draws it — all rows, offset only
+        // by the panel-wide scrollY. Clicks used to walk a per-section window instead, so
+        // with a long list expanded, everything after it was hit-tested at the wrong height.
         cy += hdrH;
         if (!currencyCollapsed) {
-            int remaining = (y + h) - cy;
-            int maxVisible = Math.max(1, remaining / entryH - 1);
-            currencyScroll = Math.min(currencyScroll, Math.max(0, currencies.size() - maxVisible));
-            for (int i = currencyScroll; i < Math.min(currencies.size(), currencyScroll + maxVisible); i++) {
-                if (hit(mx, my, cy, entryH)) {
-                    toggle(activeCurrencies, currencies.get(i).key());
+            for (IconEntry entry : currencies) {
+                if (hitRow(mx, my, cy, entryH)) {
+                    toggle(activeCurrencies, entry.key());
                     return true;
                 }
                 cy += entryH;
@@ -530,12 +542,9 @@ public class ShopFilterSidePanel {
         }
         cy += hdrH;
         if (!itemsCollapsed) {
-            int remaining = (y + h) - cy;
-            int maxVisible = Math.max(1, remaining / entryH - 1);
-            itemsScroll = Math.min(itemsScroll, Math.max(0, items.size() - maxVisible));
-            for (int i = itemsScroll; i < Math.min(items.size(), itemsScroll + maxVisible); i++) {
-                if (hit(mx, my, cy, entryH)) {
-                    toggle(activeItems, items.get(i).key());
+            for (IconEntry entry : items) {
+                if (hitRow(mx, my, cy, entryH)) {
+                    toggle(activeItems, entry.key());
                     return true;
                 }
                 cy += entryH;
@@ -550,12 +559,9 @@ public class ShopFilterSidePanel {
         }
         cy += hdrH;
         if (!ownerCollapsed) {
-            int remaining = (y + h) - cy;
-            int maxVisible = Math.max(2, remaining / entryH - 1);
-            ownerScroll = Math.min(ownerScroll, Math.max(0, owners.size() - maxVisible));
-            for (int i = ownerScroll; i < Math.min(owners.size(), ownerScroll + maxVisible); i++) {
-                if (hit(mx, my, cy, entryH)) {
-                    toggle(activeOwners, owners.get(i));
+            for (String owner : owners) {
+                if (hitRow(mx, my, cy, entryH)) {
+                    toggle(activeOwners, owner);
                     return true;
                 }
                 cy += entryH;
@@ -571,8 +577,8 @@ public class ShopFilterSidePanel {
         cy += hdrH;
         if (!dimCollapsed) {
             for (String key : dims) {
-                if (cy + entryH > y + h) break;
-                if (hit(mx, my, cy, entryH)) {
+                if (dimCounts.getOrDefault(key, 0) == 0) continue;
+                if (hitRow(mx, my, cy, entryH)) {
                     toggle(activeDims, key);
                     return true;
                 }
@@ -580,6 +586,11 @@ public class ShopFilterSidePanel {
             }
         }
         return false;
+    }
+
+    /** Row hit-test that also rejects rows scrolled outside the panel (they are scissored away). */
+    private boolean hitRow(double mx, double my, int cy, int rowH) {
+        return my >= y && my < y + h && hit(mx, my, cy, rowH);
     }
 
     public boolean mouseScrolled(double mx, double my, double dx, double dy) {
@@ -603,48 +614,5 @@ public class ShopFilterSidePanel {
     private void toggle(Set<String> set, String key) {
         if (set.contains(key)) set.remove(key);
         else set.add(key);
-    }
-
-    // ── Numismatics coin helpers ───────────────────────────────────────────────
-    // Coin values in Spurs: Spur=1, Bevel=8, Sprocket=64, Cog=512, Crown=4096, Sun=32768
-    private static final int[] COIN_VALUES = {32768, 4096, 512, 64, 8, 1};
-    private static final String[] COIN_KEYS = {
-            "numismatics:sun", "numismatics:crown", "numismatics:cog",
-            "numismatics:sprocket", "numismatics:bevel", "numismatics:spur"
-    };
-    private static final String[] COIN_LABELS = {
-            "Sun", "Crown", "Cog", "Sprocket", "Bevel", "Spur"
-    };
-
-    /**
-     * Returns the key of the highest denomination coin in the price.
-     */
-    private static String dominantCoinKey(int spurs) {
-        for (int i = 0; i < COIN_VALUES.length; i++) {
-            if (spurs >= COIN_VALUES[i]) return COIN_KEYS[i];
-        }
-        return "numismatics:spur";
-    }
-
-    private static String dominantCoinLabel(int spurs) {
-        for (int i = 0; i < COIN_VALUES.length; i++) {
-            if (spurs >= COIN_VALUES[i]) return COIN_LABELS[i];
-        }
-        return "Spur";
-    }
-
-    /**
-     * Tries to get the ItemStack for a Numismatics coin by registry key.
-     */
-    private static ItemStack coinIcon(String key) {
-        try {
-            var loc = net.minecraft.resources.ResourceLocation.parse(key);
-            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(loc);
-            if (item != null && item != net.minecraft.world.item.Items.AIR) {
-                return new ItemStack(item, 1);
-            }
-        } catch (Exception ignored) {
-        }
-        return ItemStack.EMPTY;
     }
 }

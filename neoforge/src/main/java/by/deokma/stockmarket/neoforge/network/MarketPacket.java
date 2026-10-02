@@ -10,8 +10,13 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Sent server → client with the full market entry list. */
-public record MarketPacket(List<MarketEntry> entries) implements CustomPacketPayload {
+/**
+ * Sent server → client with the full market entry list.
+ *
+ * {@code hotVolume} rides along because the threshold is a server config value the
+ * client has no way to read on its own.
+ */
+public record MarketPacket(List<MarketEntry> entries, int hotVolume) implements CustomPacketPayload {
 
     public static final Type<MarketPacket> TYPE =
             new Type<>(ResourceLocation.fromNamespaceAndPath("stockmarket", "market_data"));
@@ -20,12 +25,13 @@ public record MarketPacket(List<MarketEntry> entries) implements CustomPacketPay
             (buf, pkt) -> {
                 buf.writeInt(pkt.entries.size());
                 for (MarketEntry e : pkt.entries) e.write(buf);
+                buf.writeInt(pkt.hotVolume);
             },
             buf -> {
                 int size = buf.readInt();
                 List<MarketEntry> list = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) list.add(MarketEntry.read(buf));
-                return new MarketPacket(list);
+                return new MarketPacket(list, buf.readInt());
             }
     );
 
@@ -33,6 +39,6 @@ public record MarketPacket(List<MarketEntry> entries) implements CustomPacketPay
     public Type<? extends CustomPacketPayload> type() { return TYPE; }
 
     public static void handle(MarketPacket pkt, IPayloadContext ctx) {
-        ctx.enqueueWork(() -> ClientPacketHandler.handleMarketData(pkt.entries()));
+        ctx.enqueueWork(() -> ClientPacketHandler.handleMarketData(pkt.entries(), pkt.hotVolume()));
     }
 }

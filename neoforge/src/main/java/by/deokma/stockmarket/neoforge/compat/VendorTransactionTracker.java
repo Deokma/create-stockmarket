@@ -3,6 +3,9 @@ package by.deokma.stockmarket.neoforge.compat;
 import by.deokma.stockmarket.market.TradeStatsSavedData;
 import dev.ithundxr.createnumismatics.content.vendor.VendorBlockEntity;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -59,17 +62,23 @@ public final class VendorTransactionTracker {
 
         BlockEntity be = level.getBlockEntity(event.getPos());
         if (!(be instanceof VendorBlockEntity vendor)) return;
-        if (vendor.getMode() != VendorBlockEntity.Mode.SELL) return;
 
-        int stock = readStockCount(vendor);
-        if (stock < 0) return;
+        try {
+            if (vendor.getMode() != VendorBlockEntity.Mode.SELL) return;
 
-        UUID ownerUuid = readOwnerUuid(vendor, level.getServer());
-        if (ownerUuid == null) return;
+            int stock = readStockCount(vendor, level.getServer());
+            if (stock < 0) return;
 
-        String dimKey = level.dimension().location() + "|" + event.getPos().toShortString();
-        pendingChecks.put(player.getUUID(),
-                new VendorSnapshot(event.getPos(), dimKey, stock, ownerUuid));
+            UUID ownerUuid = NumismaticsVendorAccess.owner(vendor, level.getServer().registryAccess());
+            if (ownerUuid == null) return;
+
+            String dimKey = level.dimension().location() + "|" + event.getPos().toShortString();
+            pendingChecks.put(player.getUUID(),
+                    new VendorSnapshot(event.getPos(), dimKey, stock, ownerUuid));
+        } catch (Exception | LinkageError e) {
+            // Never let a Numismatics API change break right-clicking a vendor.
+            VendorIndexer.logFailure(e);
+        }
     }
 
     /**
@@ -94,7 +103,7 @@ public final class VendorTransactionTracker {
             BlockEntity be = level.getBlockEntity(snapshot.pos());
             if (!(be instanceof VendorBlockEntity vendor)) continue;
 
-            int newStock = readStockCount(vendor);
+            int newStock = readStockCount(vendor, server);
             if (newStock < 0 || newStock >= snapshot.initialCount()) continue;
 
             int sold = snapshot.initialCount() - newStock;
@@ -111,43 +120,33 @@ public final class VendorTransactionTracker {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
-     * Counts all items in the vendor's container that match the selling template.
+     * Counts all items in the vendor's container that the vendor trades.
      * Uses Container interface directly — avoids fragile NBT key guessing.
      */
-    private static int readStockCount(VendorBlockEntity vendor) {
+    private static int readStockCount(VendorBlockEntity vendor, MinecraftServer server) {
         try {
-            ItemStack template = vendor.getFilterItem();
-            if (template == null || template.isEmpty()) return -1;
+            ItemStack template = NumismaticsVendorAccess.tradedItem(vendor, server.registryAccess());
+            if (template.isEmpty()) return -1;
 
             int total = 0;
             int size = vendor.getContainerSize();
             for (int i = 0; i < size; i++) {
                 ItemStack stack = vendor.getItem(i);
-                if (!stack.isEmpty() && vendor.matchesFilterItem(stack)) {
+                if (NumismaticsVendorAccess.matches(vendor, template, stack)) {
                     total += stack.getCount();
                 }
             }
             return total;
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) {
+            VendorIndexer.logFailure(e);
             return -1;
         }
     }
 
-    private static UUID readOwnerUuid(VendorBlockEntity vendor, MinecraftServer server) {
-        try {
-            var tag = vendor.saveWithoutMetadata(server.registryAccess());
-            if (tag.hasUUID("Owner")) return tag.getUUID("Owner");
-            if (tag.hasUUID("owner")) return tag.getUUID("owner");
-        } catch (Exception ignored) {}
-        return null;
-    }
-
     private static ServerLevel findLevel(MinecraftServer server, String dimKey) {
-        for (ServerLevel level : server.getAllLevels()) {
-            String key = level.dimension().location() + "|";
-            if (dimKey.startsWith(key)) return level;
-        }
-        return null;
+        // The key is "<dimension>|<pos>"; a dimension id never contains '|'.
+        ResourceLocation dimId = ResourceLocation.tryParse(dimKey.substring(0, dimKey.indexOf('|')));
+        return dimId == null ? null : server.getLevel(ResourceKey.create(Registries.DIMENSION, dimId));
     }
 
     private static String resolveOwnerName(MinecraftServer server, UUID uuid) {

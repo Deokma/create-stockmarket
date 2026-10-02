@@ -2,6 +2,7 @@ package by.deokma.stockmarket.neoforge.client;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
@@ -50,27 +51,29 @@ public final class UIHelper {
     /**
      * Formats a price in Numismatics Spurs using official denominations
      * ({@link UIConstants.Coins#VALUES}) — Sun, Crown, Cog, Sprocket, Bevel, Spur.
+     * The spur divides every price, so the breakdown is always exact.
      */
     public static String formatPrice(int spurs) {
-        if (spurs <= 0) return "Free";
+        if (spurs <= 0) return I18n.get("screen.stockmarket.price_free");
         int remaining = spurs;
         StringBuilder sb = new StringBuilder();
         int[] values = UIConstants.Coins.VALUES;
-        String[] labels = UIConstants.Coins.LABELS;
         for (int i = 0; i < values.length; i++) {
             int denom = values[i];
             int n = remaining / denom;
             if (n > 0) {
                 if (!sb.isEmpty()) sb.append(' ');
-                sb.append(n).append('×').append(labels[i]);
+                sb.append(n).append('×').append(UIConstants.Coins.label(i));
                 remaining -= n * denom;
             }
         }
-        if (remaining != 0) {
-            if (!sb.isEmpty()) sb.append(' ');
-            sb.append(remaining).append("×?");
-        }
         return sb.toString();
+    }
+
+    /** {@link #formatPrice} plus a "/N" suffix when the price is for a lot of more than one item. */
+    public static String formatLotPrice(int spurs, int lotSize) {
+        String price = formatPrice(spurs);
+        return lotSize > 1 && spurs > 0 ? price + " /" + lotSize : price;
     }
 
     /**

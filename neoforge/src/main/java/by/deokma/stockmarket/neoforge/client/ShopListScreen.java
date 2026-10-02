@@ -666,14 +666,17 @@ public class ShopListScreen extends Screen {
             // Mode badge
             boolean sell = e.mode().equals("SELL");
             int modeBadgeFg = 0xFFFFFFFF; // white reads better on the coloured badge
-            int mw = font.width(e.mode()) + 6;
+            String modeLabel = ShopFilterSidePanel.modeDisplayLabel(e.mode());
+            if (font.width(modeLabel) > colMode() - 10)
+                modeLabel = font.plainSubstrByWidth(modeLabel, colMode() - 10);
+            int mw = font.width(modeLabel) + 6;
             ResourceLocation badgeTex = sell ? GuiTextures.BADGE_SELL : GuiTextures.BADGE_BUY;
             int badgeTexW = sell ? GuiTextures.Dimensions.BADGE_SELL_W : GuiTextures.Dimensions.BADGE_BUY_W;
             int badgeTexH = sell ? GuiTextures.Dimensions.BADGE_SELL_H : GuiTextures.Dimensions.BADGE_BUY_H;
             UIHelper.blitScaled(gfx, badgeTex,
                     cx + 2, ry + 4, mw, rowH - 8,
                     badgeTexW, badgeTexH);
-            gfx.drawString(font, e.mode(), cx + 5, ty, modeBadgeFg, false);
+            gfx.drawString(font, modeLabel, cx + 5, ty, modeBadgeFg, false);
             cx += colMode();
 
             // Dim
@@ -726,7 +729,8 @@ public class ShopListScreen extends Screen {
                     tt.add(Component.literal(I18n.get("screen.stockmarket.tt_vendor")));
                 }
                 tt.add(Component.literal(I18n.get("screen.stockmarket.tt_owner", e.ownerName())));
-                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_mode", sell ? "§cSELL" : "§aBUY")));
+                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_mode",
+                        (sell ? "§c" : "§a") + ShopFilterSidePanel.modeDisplayLabel(e.mode()))));
                 tt.add(Component.literal(I18n.get("screen.stockmarket.tt_pos", e.pos().toShortString())));
                 tt.add(Component.literal(I18n.get("screen.stockmarket.tt_dim", e.dimensionId())));
                 if (fav) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_favourited")));

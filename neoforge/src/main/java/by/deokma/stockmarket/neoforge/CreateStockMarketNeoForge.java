@@ -24,6 +24,7 @@ import net.minecraft.world.item.CreativeModeTab;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.common.NeoForge;
@@ -49,6 +50,12 @@ public final class CreateStockMarketNeoForge {
         LOGGER.info("[{}] NeoForge entrypoint initialising", CreateStockMarket.MOD_ID);
 
         CommonInit.init();
+
+        // ── Config ────────────────────────────────────────────────────────────
+        // Registered first so MarketConfig holds real values before anything reads it.
+        modContainer.registerConfig(ModConfig.Type.SERVER, StockMarketConfig.SPEC);
+        modEventBus.addListener(StockMarketConfig::onLoad);
+        modEventBus.addListener(StockMarketConfig::onReload);
 
         // ── Platform service injection ─────────────────────────────────────────
         // Inject platform-specific vendor helper (chunk iteration + Numismatics indexing)
