@@ -2,6 +2,8 @@ package by.deokma.stockmarket.shop;
 
 import by.deokma.stockmarket.platform.IPlatformVendorHelper;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -36,6 +38,17 @@ public final class VendorRegistry {
     /** Platform-specific helper (chunk iteration + all shop indexing). */
     private static IPlatformVendorHelper platformHelper = null;
 
+    /** Guards the indexing-failure log so a broken shop type reports once, not per block. */
+    private static boolean indexFailureLogged = false;
+
+    /**
+     * Minimum gap between full rescans triggered by players opening the shop list.
+     * Each rescan walks every block entity in every loaded chunk on the server thread,
+     * so letting each request trigger one made the list button a lag lever.
+     */
+    private static final long MIN_REQUEST_REFRESH_MS = 10_000;
+    private static long lastRefreshMs = 0;
+
     private VendorRegistry() {}
 
     // ── Platform injection ────────────────────────────────────────────────────
@@ -68,6 +81,7 @@ public final class VendorRegistry {
     public static void onServerStop() {
         savedData = null;
         nameCache.clear();
+        lastRefreshMs = 0;
     }
 
     // ── Public API ────────────────────────────────────────────────────────────
@@ -99,6 +113,7 @@ public final class VendorRegistry {
      * whose chunk is loaded but whose block no longer exists.
      */
     public static void refreshLoaded(MinecraftServer server) {
+        lastRefreshMs = System.currentTimeMillis();
         if (platformHelper != null) {
             platformHelper.forEachLoadedChunk(server, (level, chunk) -> {
                 for (BlockEntity be : chunk.getBlockEntities().values()) {
@@ -107,6 +122,15 @@ public final class VendorRegistry {
             });
         }
         pruneStaleEntries(server);
+    }
+
+    /**
+     * {@link #refreshLoaded} for player-triggered requests: skipped when a rescan ran
+     * recently. Chunk-load, place and break events keep the index current in between.
+     */
+    public static void refreshLoadedThrottled(MinecraftServer server) {
+        if (System.currentTimeMillis() - lastRefreshMs < MIN_REQUEST_REFRESH_MS) return;
+        refreshLoaded(server);
     }
 
     /** Clears only the in-memory name cache; persisted shops are kept on disk. */
@@ -118,7 +142,26 @@ public final class VendorRegistry {
 
     private static void tryIndex(ServerLevel level, BlockEntity be) {
         if (savedData == null || platformHelper == null) return;
-        platformHelper.tryIndex(level, be, savedData, nameCache);
+        try {
+            platformHelper.tryIndex(level, be, savedData, nameCache);
+        } catch (Exception | LinkageError e) {
+            // Indexing runs on the server thread from chunk-load and tick events. An exception
+            // escaping here — e.g. a NoSuchMethodError after a shop mod changed its API —
+            // crashes the server, and keeps crashing it every time that chunk loads.
+            logIndexFailure(be, e);
+        }
+    }
+
+    private static void logIndexFailure(BlockEntity be, Throwable e) {
+        if (indexFailureLogged) {
+            LOGGER.debug("[VendorRegistry] indexing {} at {} failed: {}",
+                    be.getClass().getSimpleName(), be.getBlockPos(), e.toString());
+            return;
+        }
+        indexFailureLogged = true;
+        LOGGER.error("[VendorRegistry] Failed to index {} at {} — this shop type is likely "
+                + "incompatible with the installed version of its mod. The server keeps running; "
+                + "further failures log at DEBUG.", be.getClass().getName(), be.getBlockPos(), e);
     }
 
     // ── Stale entry pruning ───────────────────────────────────────────────────
@@ -140,10 +183,9 @@ public final class VendorRegistry {
                 continue;
             }
 
-            ServerLevel level = null;
-            for (ServerLevel l : server.getAllLevels()) {
-                if (l.dimension().location().equals(dimId)) { level = l; break; }
-            }
+            // Keyed lookup — scanning getAllLevels() per entry made pruning
+            // O(shops x dimensions) on every refresh.
+            ServerLevel level = server.getLevel(ResourceKey.create(Registries.DIMENSION, dimId));
             if (level == null) continue; // dimension not loaded — can't verify
 
             if (!level.isLoaded(entry.pos())) continue; // chunk not loaded — skip

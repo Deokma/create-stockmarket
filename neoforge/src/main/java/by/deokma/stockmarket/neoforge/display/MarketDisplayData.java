@@ -43,7 +43,8 @@ public final class MarketDisplayData {
 
     /** Items ranked by total traded volume (sells + buys). */
     public static Stream<IntAttached<MutableComponent>> mostTraded(MinecraftServer server) {
-        return MarketRegistry.build(server).stream()
+        // Cached: every Display Link polls its source on its own schedule.
+        return MarketRegistry.buildCached(server).stream()
                 .filter(m -> m.sellCount() + m.buyCount() > 0)
                 .sorted(Comparator.comparingInt((MarketEntry m) -> m.sellCount() + m.buyCount()).reversed())
                 .map(m -> IntAttached.with(m.sellCount() + m.buyCount(), itemName(m)));
@@ -70,7 +71,7 @@ public final class MarketDisplayData {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static MutableComponent itemName(MarketEntry m) {
-        return m.displayStack().getHoverName().copy();
+        return m.label().copy();
     }
 
     private static IntAttached<MutableComponent> attach(long value, MutableComponent label) {

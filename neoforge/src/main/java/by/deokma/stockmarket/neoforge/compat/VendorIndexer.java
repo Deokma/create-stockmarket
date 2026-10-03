@@ -2,11 +2,9 @@ package by.deokma.stockmarket.neoforge.compat;
 
 import by.deokma.stockmarket.shop.ShopEntry;
 import by.deokma.stockmarket.shop.ShopSavedData;
-import dev.ithundxr.createnumismatics.content.backend.behaviours.SliderStylePriceBehaviour;
 import dev.ithundxr.createnumismatics.content.vendor.VendorBlock;
 import dev.ithundxr.createnumismatics.content.vendor.VendorBlockEntity;
 import net.minecraft.core.BlockPos;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
@@ -21,10 +19,16 @@ import java.util.UUID;
 /**
  * All direct references to Create: Numismatics classes live here.
  * This class must ONLY be loaded when {@link NumismaticsCompat#isPresent()} is true.
+ *
+ * <p>Only API that exists in every supported Numismatics version is called directly;
+ * anything that changed between releases goes through {@link NumismaticsVendorAccess}.
  */
 public final class VendorIndexer {
 
     private static final Logger LOGGER = LogManager.getLogger("stockmarket");
+
+    /** Guards the failure log so an incompatible Numismatics reports once, not per vendor. */
+    private static boolean failureLogged = false;
 
     private VendorIndexer() {}
 
@@ -46,51 +50,50 @@ public final class VendorIndexer {
                                    ShopSavedData savedData,
                                    Map<UUID, String> nameCache) {
         if (!(be instanceof VendorBlockEntity vendor)) return;
+        MinecraftServer server = level.getServer();
+        if (server == null) return;
+
+        String key = makeKey(level, vendor.getBlockPos());
         try {
-            MinecraftServer server = level.getServer();
-            if (server == null) return;
+            UUID ownerUuid = NumismaticsVendorAccess.owner(vendor, server.registryAccess());
+            ItemStack tradedItem = NumismaticsVendorAccess.tradedItem(vendor, server.registryAccess());
 
-            UUID ownerUuid = readOwnerNbt(vendor, server);
-            if (ownerUuid == null) return;
-
-            // Numismatics uses the filter slot as a matching rule. Its display item
-            // resolves the actual stock item for list and attribute filters.
-            ItemStack displayItem = vendor.getDisplayItem();
-            if (displayItem == null || displayItem.isEmpty()) return;
-
-            SliderStylePriceBehaviour price = vendor.getBehaviour(SliderStylePriceBehaviour.TYPE);
-            int spurs = price != null ? price.getTotalPrice() : 0;
+            // An unowned or unconfigured vendor is not a shop — drop any listing it used to have.
+            if (ownerUuid == null || tradedItem.isEmpty()) {
+                savedData.remove(key);
+                return;
+            }
 
             VendorBlockEntity.Mode mode = vendor.getMode();
             String modeStr = mode != null ? mode.name() : "SELL";
 
-            String ownerName = resolveName(server, ownerUuid, nameCache);
-            String key = makeKey(level, vendor.getBlockPos());
-
             savedData.put(key, new ShopEntry(
                     vendor.getBlockPos(),
                     level.dimension().location().toString(),
-                    displayItem.copy(),
-                    spurs,
+                    tradedItem.copy(),
+                    vendor.getTotalPrice(),
                     ItemStack.EMPTY,
                     ownerUuid,
-                    ownerName,
+                    resolveName(server, ownerUuid, nameCache),
                     modeStr,
                     "VENDOR",
                     -1
             ));
-        } catch (Exception e) {
-            LOGGER.debug("[VendorIndexer] indexVendor failed: {}", e.getMessage());
+        } catch (Exception | LinkageError e) {
+            // LinkageError matters: an API change in Numismatics surfaces as NoSuchMethodError,
+            // which `catch (Exception)` let through to the server thread and crashed it.
+            logFailure(e);
         }
     }
 
-    private static UUID readOwnerNbt(VendorBlockEntity vendor, MinecraftServer server) {
-        try {
-            CompoundTag tag = vendor.saveWithoutMetadata(server.registryAccess());
-            if (tag.hasUUID("Owner")) return tag.getUUID("Owner");
-            if (tag.hasUUID("owner")) return tag.getUUID("owner");
-        } catch (Exception ignored) {}
-        return null;
+    static void logFailure(Throwable e) {
+        if (failureLogged) {
+            LOGGER.debug("[VendorIndexer] vendor indexing failed: {}", e.toString());
+            return;
+        }
+        failureLogged = true;
+        LOGGER.warn("[VendorIndexer] Could not read a Numismatics vendor — vendor shops may be "
+                + "missing from the market. Further failures log at DEBUG.", e);
     }
 
     private static String resolveName(MinecraftServer server, UUID uuid, Map<UUID, String> cache) {

@@ -1,5 +1,6 @@
 package by.deokma.stockmarket.command;
 
+import by.deokma.stockmarket.config.MarketConfig;
 import com.mojang.brigadier.CommandDispatcher;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -29,9 +30,12 @@ public final class ShopListCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("shoplist")
+                // Level 0 by default — everyone. Admins can raise it, because the shop list
+                // reveals the coordinates of every indexed shop on the server.
+                .requires(source -> source.hasPermission(MarketConfig.shopListPermissionLevel()))
                 .executes(ctx -> {
                     if (!(ctx.getSource().getEntity() instanceof ServerPlayer player)) {
-                        ctx.getSource().sendFailure(Component.literal("Only players can use this command."));
+                        ctx.getSource().sendFailure(Component.translatable("command.stockmarket.players_only"));
                         return 0;
                     }
                     openShopListSender.accept(player);

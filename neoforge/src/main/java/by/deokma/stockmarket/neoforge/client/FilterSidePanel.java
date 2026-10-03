@@ -4,6 +4,7 @@ import by.deokma.stockmarket.market.MarketEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 
@@ -67,7 +68,7 @@ public class FilterSidePanel {
             ResourceLocation itemId = e.itemId();
             itemMap.merge(itemId,
                     new FilterEntry(itemId, e.displayStack().copyWithCount(1),
-                            e.displayStack().getHoverName().getString(), e.sellCount()),
+                            e.labelText(), e.sellCount()),
                     (a, b) -> new FilterEntry(a.itemId(), a.icon(), a.label(), a.count() + b.count()));
 
             // Currency section
@@ -81,9 +82,9 @@ public class FilterSidePanel {
                         (a, b) -> new FilterEntry(a.itemId(), a.icon(), a.label(), a.count() + b.count()));
             } else if (!e.isBarterOnly() && e.avgPrice() > 0) {
                 // Numismatics Vendor — show dominant coin denomination (e.g. "Bevel")
-                String coinKey   = dominantCoinKey(e.avgPrice());
-                String coinLabel = dominantCoinLabel(e.avgPrice());
-                ItemStack coinIc = coinIcon(coinKey);
+                String coinKey   = UIConstants.Coins.dominantKey(e.avgPrice());
+                String coinLabel = UIConstants.Coins.dominantLabel(e.avgPrice());
+                ItemStack coinIc = UIConstants.Coins.icon(coinKey);
                 ResourceLocation coinId = ResourceLocation.parse(coinKey);
                 FilterEntry fe = new FilterEntry(coinId, coinIc, coinLabel, e.sellCount());
                 currMap.merge(coinKey, fe,
@@ -117,7 +118,7 @@ public class FilterSidePanel {
         }
         // Vendor — match by dominant coin key
         if (!e.isBarterOnly() && e.avgPrice() > 0) {
-            ResourceLocation coinId = ResourceLocation.parse(dominantCoinKey(e.avgPrice()));
+            ResourceLocation coinId = ResourceLocation.parse(UIConstants.Coins.dominantKey(e.avgPrice()));
             return activeCurrencies.contains(coinId);
         }
         return false;
@@ -139,10 +140,10 @@ public class FilterSidePanel {
 
         int cy = y + 2 - scrollY;
 
-        cy = drawSection(gfx, mx, my, cy, "Currency", currencyEntries,
+        cy = drawSection(gfx, mx, my, cy, I18n.get("screen.stockmarket.filter_currency"), currencyEntries,
                 activeCurrencies, currencyCollapsed, currencyScroll);
         cy += 4;
-        cy = drawSection(gfx, mx, my, cy, "Items", itemEntries,
+        cy = drawSection(gfx, mx, my, cy, I18n.get("screen.stockmarket.filter_items"), itemEntries,
                 activeItems, itemsCollapsed, itemsScroll);
 
         gfx.disableScissor();
@@ -279,38 +280,5 @@ public class FilterSidePanel {
     private void toggleFilter(Set<ResourceLocation> set, ResourceLocation id) {
         if (set.contains(id)) set.remove(id);
         else set.add(id);
-    }
-
-    // ── Numismatics coin helpers ───────────────────────────────────────────────
-    private static final int[] COIN_VALUES = { 32768, 4096, 512, 64, 8, 1 };
-    private static final String[] COIN_KEYS = {
-        "numismatics:sun", "numismatics:crown", "numismatics:cog",
-        "numismatics:sprocket", "numismatics:bevel", "numismatics:spur"
-    };
-    private static final String[] COIN_LABELS = {
-        "Sun", "Crown", "Cog", "Sprocket", "Bevel", "Spur"
-    };
-
-    static String dominantCoinKey(int spurs) {
-        for (int i = 0; i < COIN_VALUES.length; i++) {
-            if (spurs >= COIN_VALUES[i]) return COIN_KEYS[i];
-        }
-        return "numismatics:spur";
-    }
-
-    static String dominantCoinLabel(int spurs) {
-        for (int i = 0; i < COIN_VALUES.length; i++) {
-            if (spurs >= COIN_VALUES[i]) return COIN_LABELS[i];
-        }
-        return "Spur";
-    }
-
-    static ItemStack coinIcon(String key) {
-        try {
-            var loc  = ResourceLocation.parse(key);
-            var item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(loc);
-            if (item != null && item != net.minecraft.world.item.Items.AIR) return new ItemStack(item, 1);
-        } catch (Exception ignored) {}
-        return ItemStack.EMPTY;
     }
 }

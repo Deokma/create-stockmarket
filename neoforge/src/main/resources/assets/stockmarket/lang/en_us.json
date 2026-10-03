@@ -31,6 +31,33 @@
   "screen.stockmarket.footer_hint": "↕ scroll  col → sort  ★ fav",
   "screen.stockmarket.add_to_map": "Add to map",
 
+  "screen.stockmarket.xaero_not_installed": "Xaero's Minimap not installed",
+  "screen.stockmarket.xaero_open_failed": "Couldn't open the Xaero waypoint menu",
+
+  "command.stockmarket.players_only": "Only players can use this command.",
+
+  "screen.stockmarket.price_free": "Free",
+  "screen.stockmarket.coin.sun": "Sun",
+  "screen.stockmarket.coin.crown": "Crown",
+  "screen.stockmarket.coin.cog": "Cog",
+  "screen.stockmarket.coin.sprocket": "Sprocket",
+  "screen.stockmarket.coin.bevel": "Bevel",
+  "screen.stockmarket.coin.spur": "Spur",
+
+  "screen.stockmarket.filter_mode": "Mode",
+  "screen.stockmarket.filter_type": "Type",
+  "screen.stockmarket.filter_currency": "Currency",
+  "screen.stockmarket.filter_items": "Items",
+  "screen.stockmarket.filter_owner": "Owner",
+  "screen.stockmarket.filter_dimension": "Dimension",
+
+  "screen.stockmarket.type_vendor": "Vendor",
+  "screen.stockmarket.type_tablecloth": "Table Cloth",
+  "screen.stockmarket.type_tradeworks": "Tradeworks",
+
+  "screen.stockmarket.mode_sell": "SELL",
+  "screen.stockmarket.mode_buy": "BUY",
+
   "screen.stockmarket.tt_products": "§6%s §7products in store",
   "screen.stockmarket.tt_price": "§7Price: §f%s",
   "screen.stockmarket.tt_vendor": "§8Numismatics Vendor",
@@ -58,6 +85,7 @@
 
   "screen.stockmarket.tt_avg_price": "§7Avg Price: §f%s",
   "screen.stockmarket.tt_min_price": "§7Min Price: §f%s",
+  "screen.stockmarket.tt_lot_size": "§8Prices are per %s items",
   "screen.stockmarket.tt_change_24h": "§724h Change: %s",
   "screen.stockmarket.tt_volume": "§7Volume: §f%s §8(§a%s sell §8/ §b%s buy§8)",
   "screen.stockmarket.tt_trend": "§7Trend: %s",

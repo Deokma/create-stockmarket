@@ -1,5 +1,6 @@
 package by.deokma.stockmarket.neoforge.network;
 
+import by.deokma.stockmarket.config.MarketConfig;
 import by.deokma.stockmarket.market.MarketEntry;
 import by.deokma.stockmarket.market.MarketRegistry;
 import by.deokma.stockmarket.market.TradeStatsSavedData;
@@ -28,7 +29,7 @@ public record RequestMarketPacket() implements CustomPacketPayload {
         ctx.enqueueWork(() -> {
             if (!(ctx.player() instanceof ServerPlayer player)) return;
             List<MarketEntry> entries = MarketRegistry.build(player.server);
-            NetworkHandler.sendToPlayer(player, new MarketPacket(entries));
+            NetworkHandler.sendToPlayer(player, new MarketPacket(entries, MarketConfig.hotVolume()));
             // Also send trade stats leaderboard
             var stats = TradeStatsSavedData.getOrCreate(player.server);
             NetworkHandler.sendToPlayer(player, new TradeStatsPacket(stats.getTopSellers(10)));

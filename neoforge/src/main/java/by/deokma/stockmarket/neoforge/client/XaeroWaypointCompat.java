@@ -8,9 +8,12 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.Level;
 import net.neoforged.fml.ModList;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.util.ArrayList;
 
 /**
  * Совместимость с Xaero's Minimap для открытия окна добавления вайпоинта.
@@ -44,6 +47,8 @@ import java.lang.reflect.Field;
  */
 public final class XaeroWaypointCompat {
 
+    private static final Logger LOGGER = LogManager.getLogger("stockmarket");
+
     private static final String MOD_MINIMAP = "xaerominimap";
 
     private static final String CLS_SESSION = "xaero.common.XaeroMinimapSession";
@@ -70,14 +75,14 @@ public final class XaeroWaypointCompat {
 
         if (!isPresent()) {
             mc.player.displayClientMessage(
-                    Component.literal("Xaero's Minimap not installed"), true);
+                    Component.translatable("screen.stockmarket.xaero_not_installed"), true);
             return false;
         }
 
         boolean opened = openGuiAddWaypoint(entry);
         if (!opened) {
             mc.player.displayClientMessage(
-                    Component.literal("Couldn't open the Xaero waypoint menu"), true);
+                    Component.translatable("screen.stockmarket.xaero_open_failed"), true);
         }
         return opened;
     }
@@ -87,6 +92,88 @@ public final class XaeroWaypointCompat {
     // -------------------------------------------------------------------------
 
     private static boolean openGuiAddWaypoint(ShopEntry entry) {
+        // Minimap 24+ moved sessions/worlds to xaero.hud.*. The old XaeroMinimapSession path
+        // below still exists there but its constructor lookup matched two overloads and
+        // failed at random, which is the "Couldn't open the Xaero waypoint menu" report.
+        Exception modernFailure;
+        try {
+            if (openModern(entry)) return true;
+            modernFailure = null;
+        } catch (Exception e) {
+            modernFailure = e;
+        }
+        try {
+            if (openLegacy(entry)) return true;
+            logFailure(modernFailure);
+        } catch (Exception e) {
+            if (modernFailure != null) e.addSuppressed(modernFailure);
+            logFailure(e);
+        }
+        return false;
+    }
+
+    private static boolean failureLogged = false;
+
+    private static void logFailure(Exception e) {
+        if (failureLogged) return;
+        failureLogged = true;
+        LOGGER.warn("[XaeroWaypointCompat] Could not open Xaero's add-waypoint screen — "
+                + "this Xaero's Minimap version is probably not supported yet.", e);
+    }
+
+    /**
+     * Minimap 24+ — the same call Xaero's own world map makes:
+     * {@code new GuiAddWaypoint(HudMod, MinimapSession, parent, escape, waypoints, rootPath,
+     * world, setId, adding, hasForcedPlayerPos, x, y, z, coordinateScale, coordSourceWorld)}.
+     */
+    private static boolean openModern(ShopEntry entry) throws Exception {
+        Class<?> clsHudMod;
+        try {
+            clsHudMod = Class.forName("xaero.common.HudMod");
+        } catch (ClassNotFoundException e) {
+            return false; // pre-24 Minimap — handled by openLegacy
+        }
+        Class<?> clsSession = Class.forName("xaero.hud.minimap.module.MinimapSession");
+        Class<?> clsWorld   = Class.forName("xaero.hud.minimap.world.MinimapWorld");
+        Class<?> clsPath    = Class.forName("xaero.hud.path.XaeroPath");
+
+        Object modMain = clsHudMod.getField("INSTANCE").get(null);
+        Object module  = Class.forName("xaero.hud.minimap.BuiltInHudModules").getField("MINIMAP").get(null);
+        Object session = module.getClass().getMethod("getCurrentSession").invoke(module);
+        if (modMain == null || session == null) return false;
+
+        Object worldState = clsSession.getMethod("getWorldState").invoke(session);
+        Object worldPath  = worldState.getClass().getMethod("getCurrentWorldPath").invoke(worldState);
+        Object rootPath   = clsPath.getMethod("getRoot").invoke(worldPath);
+
+        Object worldManager = clsSession.getMethod("getWorldManager").invoke(session);
+        Object world = worldManager.getClass().getMethod("getCurrentWorld").invoke(worldManager);
+        if (world == null) return false;
+        String setId = (String) clsWorld.getMethod("getCurrentWaypointSetId").invoke(world);
+
+        Constructor<?> ctor = Class.forName(CLS_GUI_ADD_WAYPOINT).getConstructor(
+                clsHudMod, clsSession, Screen.class, Screen.class, ArrayList.class, clsPath,
+                clsWorld, String.class, boolean.class, boolean.class,
+                int.class, int.class, int.class, double.class, clsWorld);
+
+        Minecraft mc = Minecraft.getInstance();
+        Screen parent = mc.screen;
+        Screen screen = (Screen) ctor.newInstance(
+                modMain, session, parent, parent,
+                new ArrayList<>(),   // nothing being edited — Xaero creates the new waypoint
+                rootPath, world, setId,
+                true,                // adding
+                true,                // hasForcedPlayerPos — use the shop's position
+                entry.pos().getX(), entry.pos().getY(), entry.pos().getZ(),
+                dimensionScale(entry.dimensionId()),
+                world);
+        mc.setScreen(screen);
+        tryPresetWaypointName(screen, buildWaypointName(entry));
+        return true;
+    }
+
+    /** Minimap before 24: the deprecated 14-argument constructor, matched by exact signature. */
+    private static boolean openLegacy(ShopEntry entry) {
         try {
             // 1. modMain = XaeroMinimapCore.modMain
             Field fModMain = Class.forName(CLS_CORE).getField("modMain");
@@ -117,13 +204,17 @@ public final class XaeroWaypointCompat {
             String setId = resolveCurrentSetId(waypointWorld);
             if (setId == null) return false;
 
-            // 7. Ищем нужный конструктор: 14 параметров,
-            //    признаки: int + double + boolean + два WaypointWorld-совместимых типа
+            // 7. Конструктор берём по точной сигнатуре. Поиск «по признакам» совпадал и с
+            //    15-параметровой перегрузкой, и вызов с 14 аргументами падал.
             Class<?> clsWorld = Class.forName(CLS_WAYPOINT_WORLD);
             Class<?> clsGui = Class.forName(CLS_GUI_ADD_WAYPOINT);
-            Constructor<?> ctor = findConstructor(clsGui, clsWorld);
-            if (ctor == null) return false;
-            ctor.setAccessible(true);
+            Constructor<?> ctor = clsGui.getConstructor(
+                    Class.forName("xaero.common.IXaeroMinimap"),
+                    Class.forName("xaero.common.minimap.waypoints.WaypointsManager"),
+                    Screen.class, Screen.class,
+                    Class.forName("xaero.common.minimap.waypoints.Waypoint"),
+                    String.class, clsWorld, String.class, boolean.class,
+                    int.class, int.class, int.class, double.class, clsWorld);
 
             Minecraft mc = Minecraft.getInstance();
             Screen parent = mc.screen;
@@ -154,9 +245,8 @@ public final class XaeroWaypointCompat {
             tryPresetWaypointName((Screen) screen, buildWaypointName(entry));
             return true;
 
-        } catch (Exception e) {
-            // Для диагностики раскомментируй:
-            // e.printStackTrace();
+        } catch (ReflectiveOperationException e) {
+            // Нет такого API — значит, это не pre-24 Minimap.
             return false;
         }
     }
@@ -183,7 +273,7 @@ public final class XaeroWaypointCompat {
         if (name == null || name.isBlank()) return;
 
         // Известные имена поля для имени вайпоинта в разных версиях Xaero
-        String[] knownFieldNames = {"tf_name", "nameField", "nameEditBox", "textName", "nameBox", "waypointNameField"};
+        String[] knownFieldNames = {"nameTextField", "tf_name", "nameField", "nameEditBox", "textName", "nameBox", "waypointNameField"};
 
         for (Class<?> cls = screen.getClass(); cls != null; cls = cls.getSuperclass()) {
             // Попытка 1: по известным именам полей
@@ -236,46 +326,9 @@ public final class XaeroWaypointCompat {
         return null;
     }
 
-    /**
-     * Ищет нужный конструктор GuiAddWaypoint.
-     * <p>
-     * Целевой конструктор (deprecated, 14 параметров):
-     * (IXaeroMinimap, WaypointsManager, Screen, Screen, Waypoint,
-     * String, WaypointWorld, String, boolean, int, int, int, double, WaypointWorld)
-     * <p>
-     * Уникальные признаки для поиска:
-     * - есть int  (x, y, z)
-     * - есть double (scale)
-     * - есть boolean (hasForcedPlayerPos)
-     * - как минимум два параметра, совместимых с WaypointWorld
-     * - НЕТ параметра типа WaypointSet (это распространённая ошибка!)
-     */
-    private static Constructor<?> findConstructor(Class<?> clsGui, Class<?> clsWorld) {
-        for (Constructor<?> ctor : clsGui.getDeclaredConstructors()) {
-            Class<?>[] p = ctor.getParameterTypes();
-            if (!hasType(p, int.class)) continue;
-            if (!hasType(p, double.class)) continue;
-            if (!hasType(p, boolean.class)) continue;
-            if (countAssignable(p, clsWorld) < 2) continue; // два WaypointWorld
-            return ctor;
-        }
-        return null;
-    }
-
     // -------------------------------------------------------------------------
     // Вспомогательные методы
     // -------------------------------------------------------------------------
-
-    private static boolean hasType(Class<?>[] params, Class<?> target) {
-        for (Class<?> p : params) if (p == target) return true;
-        return false;
-    }
-
-    private static int countAssignable(Class<?>[] params, Class<?> target) {
-        int count = 0;
-        for (Class<?> p : params) if (target.isAssignableFrom(p)) count++;
-        return count;
-    }
 
     private static double dimensionScale(String dimensionId) {
         ResourceLocation id = ResourceLocation.tryParse(dimensionId);

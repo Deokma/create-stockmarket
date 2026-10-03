@@ -19,6 +19,7 @@ import net.minecraft.world.level.chunk.LevelChunk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.BiConsumer;
@@ -38,6 +39,29 @@ import java.util.function.BiConsumer;
 public final class NeoForgeVendorHelper implements IPlatformVendorHelper {
 
     private static final Logger LOGGER = LogManager.getLogger("stockmarket");
+
+    /**
+     * {@code ChunkMap.getChunks()} is protected, so it is reached by reflection.
+     * Resolved once at class-load — looking it up per level per scan showed up as a
+     * measurable cost on the server thread.
+     */
+    private static final Method GET_CHUNKS = resolveGetChunks();
+
+    /** Guards the failure log so a broken lookup reports once, not every scan. */
+    private static boolean chunkIterationFailureLogged = false;
+
+    private static Method resolveGetChunks() {
+        try {
+            Method m = net.minecraft.server.level.ChunkMap.class.getDeclaredMethod("getChunks");
+            m.setAccessible(true);
+            return m;
+        } catch (Exception e) {
+            LOGGER.error("[NeoForgeVendorHelper] ChunkMap.getChunks() could not be resolved — "
+                    + "the periodic shop rescan is disabled. Shops will only be indexed on chunk "
+                    + "load, block place and block break.", e);
+            return null;
+        }
+    }
 
     // ── IPlatformVendorHelper ─────────────────────────────────────────────────
 
@@ -65,22 +89,40 @@ public final class NeoForgeVendorHelper implements IPlatformVendorHelper {
 
     @Override
     public void forEachLoadedChunk(MinecraftServer server, BiConsumer<ServerLevel, LevelChunk> action) {
+        if (GET_CHUNKS == null) return; // already reported by resolveGetChunks()
+
         for (ServerLevel level : server.getAllLevels()) {
+            Iterable<?> holders;
             try {
-                var method = net.minecraft.server.level.ChunkMap.class.getDeclaredMethod("getChunks");
-                method.setAccessible(true);
-                Object result = method.invoke(level.getChunkSource().chunkMap);
-                for (Object obj : (Iterable<?>) result) {
-                    net.minecraft.server.level.ChunkHolder holder =
-                            (net.minecraft.server.level.ChunkHolder) obj;
-                    LevelChunk chunk = holder.getTickingChunk();
-                    if (chunk == null) continue;
-                    action.accept(level, chunk);
-                }
+                holders = (Iterable<?>) GET_CHUNKS.invoke(level.getChunkSource().chunkMap);
             } catch (Exception e) {
-                LOGGER.debug("[NeoForgeVendorHelper] forEachLoadedChunk: {}", e.getMessage());
+                logChunkIterationFailure(level, e);
+                continue;
+            }
+            for (Object obj : holders) {
+                net.minecraft.server.level.ChunkHolder holder =
+                        (net.minecraft.server.level.ChunkHolder) obj;
+                LevelChunk chunk = holder.getTickingChunk();
+                if (chunk == null) continue;
+                action.accept(level, chunk);
             }
         }
+    }
+
+    /**
+     * Indexing failures used to be swallowed at DEBUG, so a mapping change could stop
+     * shops being indexed with nothing in the log. Report the first one at WARN.
+     */
+    private static void logChunkIterationFailure(ServerLevel level, Exception e) {
+        if (chunkIterationFailureLogged) {
+            LOGGER.debug("[NeoForgeVendorHelper] chunk iteration failed in {}: {}",
+                    level.dimension().location(), e.toString());
+            return;
+        }
+        chunkIterationFailureLogged = true;
+        LOGGER.warn("[NeoForgeVendorHelper] chunk iteration failed in {} — shops in this "
+                + "dimension will not be rescanned. Further occurrences log at DEBUG.",
+                level.dimension().location(), e);
     }
 
     // ── TableCloth indexing ───────────────────────────────────────────────────
@@ -94,18 +136,18 @@ public final class NeoForgeVendorHelper implements IPlatformVendorHelper {
             CompoundTag tag = cloth.saveWithoutMetadata(server.registryAccess());
             LOGGER.debug("[NeoForgeVendorHelper] TableCloth NBT keys at {}: {}", cloth.getBlockPos(), tag.getAllKeys());
 
+            // Cleared up front: a cloth that lost its owner or its offers is no longer a shop,
+            // and returning early used to leave its old listings on the market forever.
+            String baseKey = makeKey(level, cloth.getBlockPos());
+            savedData.removeByBaseKey(baseKey);
+
             if (!tag.hasUUID("OwnerUUID")) return;
             UUID ownerUuid = tag.getUUID("OwnerUUID");
 
-            net.minecraft.nbt.ListTag entryList;
-            try {
-                var requestData   = tag.getCompound("RequestData");
-                var encodedReq    = requestData.getCompound("encoded_request");
-                var orderedStacks = encodedReq.getCompound("ordered_stacks");
-                entryList = orderedStacks.getList("entries", 10);
-            } catch (Exception ignored) {
-                return;
-            }
+            var requestData   = tag.getCompound("RequestData");
+            var encodedReq    = requestData.getCompound("encoded_request");
+            var orderedStacks = encodedReq.getCompound("ordered_stacks");
+            net.minecraft.nbt.ListTag entryList = orderedStacks.getList("entries", 10);
             if (entryList.isEmpty()) return;
 
             ItemStack paymentTemplate = parsePaymentItem(tag, server);
@@ -120,9 +162,6 @@ public final class NeoForgeVendorHelper implements IPlatformVendorHelper {
                 }
                 return id.toString().substring(0, 8);
             });
-
-            String baseKey = makeKey(level, cloth.getBlockPos());
-            savedData.removeByBaseKey(baseKey);
 
             String shopType = TradeworksCompat.isPresent() && isTradeworksBlock(cloth)
                     ? "TRADEWORKS"

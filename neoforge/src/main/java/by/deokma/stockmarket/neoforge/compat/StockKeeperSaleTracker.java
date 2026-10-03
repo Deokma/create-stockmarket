@@ -220,6 +220,7 @@ public final class StockKeeperSaleTracker {
 
     public static void clear() {
         pendingShopOwner.clear();
+        delayedBlockChecks.clear();
     }
 
     private static String resolveOwnerName(MinecraftServer server, UUID uuid) {

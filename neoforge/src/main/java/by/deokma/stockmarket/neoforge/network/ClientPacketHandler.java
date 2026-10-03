@@ -36,8 +36,9 @@ public final class ClientPacketHandler {
         Minecraft.getInstance().setScreen(new ShopListScreen());
     }
 
-    public static void handleMarketData(List<MarketEntry> entries) {
+    public static void handleMarketData(List<MarketEntry> entries, int hotVolume) {
         MarketData.set(entries);
+        MarketData.setHotVolume(hotVolume);
         MarketData.setLoading(false);
         Minecraft mc = Minecraft.getInstance();
         if (mc.screen instanceof StockMarketScreen screen) {

@@ -1,12 +1,12 @@
 package by.deokma.stockmarket.neoforge.market;
 
+import by.deokma.stockmarket.config.MarketConfig;
 import by.deokma.stockmarket.market.MarketRegistry;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 public final class MarketEvents {
 
-    private static final int SNAPSHOT_INTERVAL = 12000; // 600 seconds at 20 TPS
     private static int tickCounter = 0;
 
     private MarketEvents() {}
@@ -16,7 +16,8 @@ public final class MarketEvents {
     }
 
     private static void onServerTick(ServerTickEvent.Post event) {
-        if (++tickCounter >= SNAPSHOT_INTERVAL) {
+        // Interval is read every tick so a config reload takes effect without a restart.
+        if (++tickCounter >= MarketConfig.snapshotIntervalTicks()) {
             tickCounter = 0;
             MarketRegistry.snapshot(event.getServer());
         }
