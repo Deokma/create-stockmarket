@@ -17,6 +17,10 @@ preserve_hierarchy: true
 files:
   - source: /neoforge/src/main/resources/assets/stockmarket/lang/en_us.json
     translation: /neoforge/src/main/resources/assets/stockmarket/lang/%locale_with_underscore%.json
+    # Leave untranslated strings out of the exported files. Otherwise Crowdin fills them with
+    # a copy of the English text, and Minecraft shows that frozen copy even after en_us.json
+    # changes; with the key absent, the game falls back to the current English text itself.
+    skip_untranslated_strings: true
     # Minecraft uses lowercase locale file names (ru_ru.json), but Crowdin's default
     # placeholder yields ru_RU. This mapping forces the correct Minecraft codes.
     # Every target language needs an entry: an unmapped one falls back to Crowdin's
