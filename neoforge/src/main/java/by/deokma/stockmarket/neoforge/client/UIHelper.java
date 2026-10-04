@@ -2,8 +2,11 @@ package by.deokma.stockmarket.neoforge.client;
 
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
+import com.mojang.datafixers.util.Either;
 import net.minecraft.client.resources.language.I18n;
+import net.minecraft.network.chat.FormattedText;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.ItemStack;
 
 /**
@@ -70,10 +73,141 @@ public final class UIHelper {
         return sb.toString();
     }
 
-    /** {@link #formatPrice} plus a "/N" suffix when the price is for a lot of more than one item. */
-    public static String formatLotPrice(int spurs, int lotSize) {
-        String price = formatPrice(spurs);
-        return lotSize > 1 && spurs > 0 ? price + " /" + lotSize : price;
+    /** Horizontal step per coin: a 16px item icon plus a 1px gap; the count sits on the icon. */
+    private static final int COIN_STEP = 17;
+
+    /**
+     * Draws a price as Numismatics coin icons, largest denomination first, each with its
+     * count in the corner like an inventory stack. Denominations that do not fit in
+     * {@code maxWidth} are replaced by "…" — callers keep the exact price in the row tooltip.
+     * A text price wider than its column used to spill over the neighbouring columns.
+     *
+     * <p>Falls back to {@link #formatPrice} text (clipped to the width) when the coin items
+     * are not registered.
+     *
+     * @param suffix drawn after the coins in the dim colour, e.g. {@code "/64"}; "" for none
+     * @param iconY  top of the 16px icons
+     * @param textY  baseline row for text (the "…", the suffix and the fallback)
+     */
+    public static void drawCoinPrice(GuiGraphics gfx, Font font, int spurs, String suffix,
+                                     int x, int iconY, int textY, int maxWidth, int color) {
+        if (spurs <= 0 || !hasCoinIcons()) {
+            gfx.drawString(font, clip(font, formatPrice(spurs), maxWidth), x, textY, color, false);
+            return;
+        }
+
+        int[] counts = coinCounts(spurs);
+        int[] coinIndex = new int[counts.length];
+        int[] coinCount = new int[counts.length];
+        int coins = 0;
+        for (int i = 0; i < counts.length; i++) {
+            if (counts[i] == 0) continue;
+            coinIndex[coins] = i;
+            coinCount[coins] = counts[i];
+            coins++;
+        }
+
+        String more = "…";
+        int suffixW = suffix.isEmpty() ? 0 : font.width(suffix) + 2;
+        int budget = maxWidth - suffixW;
+        int shown = Math.min(coins, budget / COIN_STEP);
+        if (shown < coins) {
+            shown = Math.max(0, (budget - font.width(more) - 2) / COIN_STEP);
+        }
+
+        int cx = x;
+        for (int k = 0; k < shown; k++) {
+            ItemStack icon = UIConstants.Coins.icon(coinIndex[k]);
+            gfx.renderItem(icon, cx, iconY);
+            gfx.renderItemDecorations(font, icon, cx, iconY,
+                    coinCount[k] == 1 ? null : String.valueOf(coinCount[k]));
+            cx += COIN_STEP;
+        }
+        if (shown < coins) {
+            gfx.drawString(font, more, cx + 1, textY, color, false);
+            cx += font.width(more) + 2;
+        }
+        if (!suffix.isEmpty()) {
+            gfx.drawString(font, suffix, cx + 1, textY, UIConstants.Colors.TEXT_DIM, false);
+        }
+    }
+
+    /** Gap between one coin's "×N" and the next coin in {@link #drawCoinBreakdown}. */
+    private static final int BREAKDOWN_GAP = 4;
+
+    /**
+     * Width of {@link #drawCoinBreakdown} for this price, or of the plain text price when the
+     * coin items are missing.
+     */
+    public static int coinBreakdownWidth(Font font, int spurs) {
+        if (spurs <= 0 || !hasCoinIcons()) return font.width(formatPrice(spurs));
+        int width = 0;
+        for (int n : coinCounts(spurs)) {
+            if (n == 0) continue;
+            if (width > 0) width += BREAKDOWN_GAP;
+            width += COIN_STEP + font.width("×" + n);
+        }
+        return width;
+    }
+
+    /**
+     * Draws the whole price as coin icons, each followed by "×N" — no truncation, for
+     * tooltips. Falls back to {@link #formatPrice} text when the coin items are missing.
+     *
+     * @param y top of the 16px icons; text is centred on them
+     */
+    public static void drawCoinBreakdown(GuiGraphics gfx, Font font, int spurs, int x, int y, int textColor) {
+        if (spurs <= 0 || !hasCoinIcons()) {
+            gfx.drawString(font, formatPrice(spurs), x, y + 4, textColor, true);
+            return;
+        }
+        int[] counts = coinCounts(spurs);
+        int cx = x;
+        for (int i = 0; i < counts.length; i++) {
+            if (counts[i] == 0) continue;
+            String count = "×" + counts[i];
+            gfx.renderItem(UIConstants.Coins.icon(i), cx, y);
+            gfx.drawString(font, count, cx + COIN_STEP, y + 4, textColor, true);
+            cx += COIN_STEP + font.width(count) + BREAKDOWN_GAP;
+        }
+    }
+
+    /**
+     * A tooltip line for a coin price: the translated label (e.g. "Price: ") followed by the
+     * coins as icons, or the plain text line when the price is free or the coins are missing.
+     *
+     * @param labelKey lang key with one {@code %s} for the price, e.g. {@code screen.stockmarket.tt_price}
+     */
+    public static Either<FormattedText, TooltipComponent> priceTooltipLine(String labelKey, int spurs) {
+        if (spurs > 0 && hasCoinIcons()) {
+            return Either.right(new CoinPriceTooltip(I18n.get(labelKey, ""), spurs));
+        }
+        return Either.left(net.minecraft.network.chat.Component.literal(I18n.get(labelKey, formatPrice(spurs))));
+    }
+
+    /** True when every Numismatics coin item is registered, so prices can be drawn as icons. */
+    public static boolean hasCoinIcons() {
+        for (int i = 0; i < UIConstants.Coins.VALUES.length; i++) {
+            if (UIConstants.Coins.icon(i).isEmpty()) return false;
+        }
+        return true;
+    }
+
+    /** Coins per denomination (indexed like {@link UIConstants.Coins#VALUES}), largest first. */
+    private static int[] coinCounts(int spurs) {
+        int[] values = UIConstants.Coins.VALUES;
+        int[] counts = new int[values.length];
+        int remaining = Math.max(0, spurs);
+        for (int i = 0; i < values.length; i++) {
+            counts[i] = remaining / values[i];
+            remaining -= counts[i] * values[i];
+        }
+        return counts;
+    }
+
+    private static String clip(Font font, String text, int maxWidth) {
+        if (font.width(text) <= maxWidth) return text;
+        return font.plainSubstrByWidth(text, Math.max(0, maxWidth - font.width("…"))) + "…";
     }
 
     /**
