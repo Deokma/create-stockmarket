@@ -4,14 +4,17 @@ import by.deokma.stockmarket.neoforge.network.NetworkHandler;
 import by.deokma.stockmarket.neoforge.network.RequestShopListPacket;
 import by.deokma.stockmarket.shop.ShopEntry;
 import by.deokma.stockmarket.shop.ShopListData;
+import com.mojang.datafixers.util.Either;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.inventory.tooltip.TooltipComponent;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.*;
@@ -648,7 +651,9 @@ public class ShopListScreen extends Screen {
                 if (e.priceItem().getCount() > 1)
                     gfx.drawString(font, "x" + e.priceItem().getCount(), cx + 18, ty, Colors.GOLD, false);
             } else {
-                gfx.drawString(font, UIHelper.formatPrice(e.totalPriceInSpurs()), cx + 2, ty, Colors.GOLD, false);
+                // Coin icons, clipped to the column — the full text price is in the tooltip.
+                UIHelper.drawCoinPrice(gfx, font, e.totalPriceInSpurs(), "",
+                        cx + 2, iconY, ty, colPrice() - 6, Colors.GOLD);
             }
             cx += colPrice();
 
@@ -703,40 +708,39 @@ public class ShopListScreen extends Screen {
 
             // Tooltip
             if (hov) {
-                List<Component> tt = new ArrayList<>();
+                // Mixed tooltip: text lines plus, for vendors, the price as a row of coin icons.
+                List<Either<FormattedText, TooltipComponent>> tt = new ArrayList<>();
                 if (row.offers.size() == 1) {
-                    tt.add(row.offers.get(0).sellingItem().getHoverName().copy()
-                            .withStyle(s -> s.withColor(Colors.GOLD)));
+                    tt.add(Either.left(row.offers.get(0).sellingItem().getHoverName().copy()
+                            .withStyle(s -> s.withColor(Colors.GOLD))));
                 } else {
-                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_products", row.offers.size())));
+                    tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_products", row.offers.size()))));
                     for (ShopEntry off : row.offers) {
                         ItemStack s = off.sellingItem();
                         String lineT = "§f• §r" + s.getHoverName().getString()
                                 + (s.getCount() > 1 ? " §7×§f" + s.getCount() : "");
-                        tt.add(Component.literal(lineT));
+                        tt.add(Either.left(Component.literal(lineT)));
                     }
                 }
                 if (e.usesItemPrice()) {
                     String ps = e.priceItem().isEmpty() ? "?"
                             : e.priceItem().getHoverName().getString()
                             + (e.priceItem().getCount() > 1 ? " x" + e.priceItem().getCount() : "");
-                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_price", ps)));
-                    tt.add(Component.literal(e.isTradeworks()
+                    tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_price", ps))));
+                    tt.add(Either.left(Component.literal(e.isTradeworks()
                             ? I18n.get("screen.stockmarket.tt_tradeworks")
-                            : I18n.get("screen.stockmarket.tt_tablecloth")));
+                            : I18n.get("screen.stockmarket.tt_tablecloth"))));
                 } else {
-                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_price", UIHelper.formatPrice(e.totalPriceInSpurs()))));
-                    tt.add(Component.literal(I18n.get("screen.stockmarket.tt_vendor")));
+                    tt.add(UIHelper.priceTooltipLine("screen.stockmarket.tt_price", e.totalPriceInSpurs()));
+                    tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_vendor"))));
                 }
-                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_owner", e.ownerName())));
-                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_mode",
-                        (sell ? "§c" : "§a") + ShopFilterSidePanel.modeDisplayLabel(e.mode()))));
-                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_pos", e.pos().toShortString())));
-                tt.add(Component.literal(I18n.get("screen.stockmarket.tt_dim", e.dimensionId())));
-                if (fav) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_favourited")));
-                gfx.renderTooltip(font,
-                        tt.stream().map(Component::getVisualOrderText).collect(Collectors.toList()),
-                        mouseX, mouseY);
+                tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_owner", e.ownerName()))));
+                tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_mode",
+                        (sell ? "§c" : "§a") + ShopFilterSidePanel.modeDisplayLabel(e.mode())))));
+                tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_pos", e.pos().toShortString()))));
+                tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_dim", e.dimensionId()))));
+                if (fav) tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_favourited"))));
+                gfx.renderComponentTooltipFromElements(font, tt, mouseX, mouseY, ItemStack.EMPTY);
             }
         }
     }

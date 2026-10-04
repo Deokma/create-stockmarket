@@ -6,13 +6,17 @@ import by.deokma.stockmarket.market.TradeStatsData;
 import by.deokma.stockmarket.neoforge.network.NetworkHandler;
 import by.deokma.stockmarket.neoforge.network.RequestMarketPacket;
 import by.deokma.stockmarket.shop.ShopListData;
+import com.mojang.datafixers.util.Either;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.resources.language.I18n;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FormattedText;
 import net.minecraft.util.Mth;
+import net.minecraft.world.inventory.tooltip.TooltipComponent;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -494,9 +498,8 @@ public class MarketMonitorScreen {
         cx += colItem();
 
         // ── Price (avg, for the stock's lot size) ─────────────────────────────
-        String price = UIHelper.formatLotPrice(e.avgPrice(), e.lotSize());
-        if (font.width(price) > colPrice() - 4) price = font.plainSubstrByWidth(price, colPrice() - 8) + "…";
-        gfx.drawString(font, price, cx + 2, ty, Colors.GOLD, false);
+        UIHelper.drawCoinPrice(gfx, font, e.avgPrice(), e.lotSize() > 1 ? "/" + e.lotSize() : "",
+                cx + 2, ry + (rowH - 16) / 2, ty, colPrice() - 6, Colors.GOLD);
         cx += colPrice();
 
         // ── % Change ─────────────────────────────────────────────────────────
@@ -648,23 +651,24 @@ public class MarketMonitorScreen {
     // ── Tooltips ──────────────────────────────────────────────────────────────
 
     private void drawVendorTooltip(GuiGraphics gfx, MarketEntry e, int mx, int my) {
-        List<Component> tt = new ArrayList<>();
-        tt.add(e.label().copy().withStyle(s -> s.withColor(Colors.GOLD)));
+        // Mixed tooltip: text lines plus the prices as rows of coin icons.
+        List<Either<FormattedText, TooltipComponent>> tt = new ArrayList<>();
+        tt.add(Either.left(e.label().copy().withStyle(s -> s.withColor(Colors.GOLD))));
 
         // Price info
-        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_avg_price", UIHelper.formatPrice(e.avgPrice()))));
-        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_min_price", UIHelper.formatPrice(e.minPrice()))));
-        if (e.lotSize() > 1) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_lot_size", e.lotSize())));
+        tt.add(UIHelper.priceTooltipLine("screen.stockmarket.tt_avg_price", e.avgPrice()));
+        tt.add(UIHelper.priceTooltipLine("screen.stockmarket.tt_min_price", e.minPrice()));
+        if (e.lotSize() > 1) tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_lot_size", e.lotSize()))));
 
         // % change
         double pct = priceChangePct(e);
         String pctStr = UIHelper.formatChangePct(pct);
         String pctColored = pct > 0.05 ? "§a" + pctStr : pct < -0.05 ? "§c" + pctStr : "§7" + pctStr;
-        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_change_24h", pctColored)));
+        tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_change_24h", pctColored))));
 
         // Volume
         int vol = e.sellCount() + e.buyCount();
-        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_volume", vol, e.sellCount(), e.buyCount())));
+        tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_volume", vol, e.sellCount(), e.buyCount()))));
 
         // Trend
         String ts = switch (e.trend()) {
@@ -672,16 +676,17 @@ public class MarketMonitorScreen {
             case FALLING -> I18n.get("screen.stockmarket.trend_falling");
             default -> I18n.get("screen.stockmarket.trend_stable");
         };
-        tt.add(Component.literal(I18n.get("screen.stockmarket.tt_trend", ts)));
+        tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_trend", ts))));
 
-        if (vol >= MarketData.hotVolume()) tt.add(Component.literal(I18n.get("screen.stockmarket.tt_high_activity")));
+        if (vol >= MarketData.hotVolume()) tt.add(Either.left(Component.literal(I18n.get("screen.stockmarket.tt_high_activity"))));
 
-        gfx.renderTooltip(font, tt.stream().map(Component::getVisualOrderText).collect(Collectors.toList()), mx, my);
+        gfx.renderComponentTooltipFromElements(font, tt, mx, my, ItemStack.EMPTY);
 
-        // Full-size chart in tooltip
+        // Full-size chart in tooltip — placed below the tooltip, whose coin rows are taller than text.
         if (e.priceHistory().size() >= 2) {
+            int ttHeight = tt.stream().mapToInt(line -> line.right().isPresent() ? 18 : 10).sum();
             int chartX = Math.min(mx + 4, Minecraft.getInstance().getWindow().getGuiScaledWidth() - 92);
-            int chartY = Math.min(my + tt.size() * 10 + 6, Minecraft.getInstance().getWindow().getGuiScaledHeight() - 38);
+            int chartY = Math.min(my + ttHeight + 6, Minecraft.getInstance().getWindow().getGuiScaledHeight() - 38);
             drawMiniChart(gfx, e.priceHistory(), chartX, chartY, 88, 34);
         }
     }

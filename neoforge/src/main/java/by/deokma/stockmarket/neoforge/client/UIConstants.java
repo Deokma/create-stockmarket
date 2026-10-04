@@ -131,6 +131,19 @@ public final class UIConstants {
             return label(dominantIndex(spurs));
         }
 
+        /** Coin items by denomination index, resolved once — prices are drawn every frame. */
+        private static net.minecraft.world.item.ItemStack[] icons;
+
+        /** The coin item for a denomination index, or EMPTY without Numismatics. Do not mutate. */
+        public static net.minecraft.world.item.ItemStack icon(int index) {
+            if (icons == null) {
+                net.minecraft.world.item.ItemStack[] resolved = new net.minecraft.world.item.ItemStack[NAMES.length];
+                for (int i = 0; i < NAMES.length; i++) resolved[i] = icon(key(i));
+                icons = resolved;
+            }
+            return icons[index];
+        }
+
         /** The coin item for a registry key, or {@link net.minecraft.world.item.ItemStack#EMPTY} without Numismatics. */
         public static net.minecraft.world.item.ItemStack icon(String key) {
             var loc = net.minecraft.resources.ResourceLocation.tryParse(key);

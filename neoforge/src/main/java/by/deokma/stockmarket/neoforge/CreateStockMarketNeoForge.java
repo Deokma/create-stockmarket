@@ -27,6 +27,7 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.BuildCreativeModeTabContentsEvent;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
@@ -95,6 +96,9 @@ public final class CreateStockMarketNeoForge {
 
         modEventBus.addListener(this::commonSetup);
         modEventBus.addListener(this::clientSetup);
+        if (FMLEnvironment.dist.isClient()) {
+            ClientSetup.initEarly(modEventBus);
+        }
         modEventBus.addListener(this::onBuildCreativeTabs);
         NeoForge.EVENT_BUS.addListener(this::onRegisterCommands);
     }
